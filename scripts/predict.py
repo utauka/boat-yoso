@@ -21,7 +21,7 @@ from common import (CLASS_NAMES, DATA, JST, MODELS, SITE_DATA, STADIUMS, env_loc
                     payout_class, read_store, write_json)
 from features import COMBO_INDEX, CourseHistory, combo_name, in_diagnosis, prep, race_rows
 from odds import fetch_odds3t
-from strategy import IN_SKIP, PLANS, in_level, pick_candidates, plan_combos
+from strategy import DEFAULT_MIX, HONMEI_MIN, KINDS, MIXES, mix_key, pick_candidates
 from train import est_odds, predict_probs
 
 PRED = SITE_DATA / "predictions.json"
@@ -84,13 +84,13 @@ def main():
         diag = in_diagnosis(rows)
         ib = diag["b"]
         p_in = float(p1[0][ib - 1])
-        diag.update(p=round(p_in * 100, 1), level=in_level(p_in))
+        diag.update(p=round(p_in * 100, 1), level="strong" if p_in >= 0.7 else "normal" if p_in >= 0.5 else "weak")
         O = est_odds(om, df, meta["odds_correction"])[0]
         ca = dt.datetime.fromisoformat(x["ca"]).replace(tzinfo=JST) if x.get("ca") else None
         closed = bool(ca and now >= ca)
         old = prev_races.get((x["j"], x["r"]))
 
-        if old and old.get("frozen") and "in" in old:
+        if old and old.get("frozen") and "cands" in old:
             item = old  # 締切前に確定した予想を残す
         else:
             odds_src, live = "est", None
@@ -108,7 +108,7 @@ def main():
                     if k in COMBO_INDEX:
                         O_use[COMBO_INDEX[k]] = v
                 odds_src = "live"
-            pk = pick_candidates(P[0], O_use, ib, live=odds_src == "live")
+            pk = pick_candidates(P[0], O_use, live=odds_src == "live")
             top = np.argsort(-P[0])[:6]
             item = {
                 "j": x["j"], "r": x["r"], "ca": x.get("ca"), "title": x.get("title"), "sub": x.get("sub"),
@@ -118,9 +118,7 @@ def main():
                            "c": (b.get("ex") or {}).get("c"), "exst": (b.get("ex") or {}).get("st"),
                            "p1": round(float(p1[0][i]) * 100, 1), "p3": round(float(p3[0][i]) * 100, 1)}
                           for i, b in enumerate(x["boats"])],
-                "honmei": pk["honmei"], "ana": pk["ana"], "odds_source": odds_src,
-                "plans": {k: plan_combos(pk, k) for k in PLANS},
-                "in": diag, "skip": p_in < IN_SKIP,
+                "cands": pk, "odds_source": odds_src, "in": diag,
                 "top": [{"c": combo_name(int(i)), "p": round(float(P[0][i]) * 100, 1), "odds": round(float(O_use[i]), 1)}
                         for i in top],
                 "reasons": reasons(x, p1[0], diag),
@@ -132,29 +130,26 @@ def main():
         t = (x.get("pay") or {}).get("trifecta") or []
         if t:
             item["result"] = {"combo": t[0][0], "pay": t[0][1], "cls": payout_class(t[0][1])}
-            for k in ("honmei", "ana"):
-                for c in item.get(k) or []:
+            for k in KINDS:
+                for c in item["cands"].get(k) or []:
                     c["hit"] = c["combo"] == t[0][0]
-            item["plan_hit"] = {k: t[0][0] in v for k, v in item["plans"].items()}
             item["frozen"] = True
         out_races.append(item)
 
     write_json(LIVE, live_store)
-    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "plans": PLANS, "in_skip": IN_SKIP,
+    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "mixes": [mix_key(m) for m in MIXES], "default_mix": mix_key(DEFAULT_MIX), "honmei_min": HONMEI_MIN,
                       "stadiums": {str(j): n for j, n in STADIUMS.items()}, "races": out_races})
 
-    # 実績ログ（結果が出たレースだけ）: プランごとに 1行
-    COLS = ["date", "j", "r", "plan", "combos", "odds_source", "hit", "ret", "cost", "after_close", "skip"]
+    # 実績ログ（結果が出たレースだけ）: 候補を区分ごとに残し、画面でどの配分でも計算できるようにする
+    COLS = ["date", "j", "r", "odds_source", "honmei", "chuana", "oana", "result", "pay", "after_close"]
     log = json.loads(LOG.read_text()) if LOG.exists() else {}
     keep = [r for r in log.get("rows", []) if r[0] != day.isoformat()] if log.get("cols") == COLS else []
     for z in out_races:
         if not z.get("result"):
             continue
-        for k, combos in z["plans"].items():
-            hit = z["result"]["combo"] in combos
-            keep.append([day.isoformat(), z["j"], z["r"], k, "/".join(combos), z["odds_source"], int(hit),
-                         z["result"]["pay"] if hit else 0, 100 * len(combos), int(bool(z.get("made_after_close"))),
-                         int(bool(z.get("skip")))])
+        keep.append([day.isoformat(), z["j"], z["r"], z["odds_source"]]
+                    + ["/".join(c["combo"] for c in z["cands"][k]) for k in KINDS]
+                    + [z["result"]["combo"], z["result"]["pay"], int(bool(z.get("made_after_close")))])
     keep.sort()
     write_json(LOG, {"cols": COLS, "rows": keep})
     done = [z for z in out_races if z.get("result")]

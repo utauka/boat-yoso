@@ -86,12 +86,27 @@ td.r,th.r{text-align:right}
 .entries td{padding:4px 8px}.entries .nm{white-space:normal;min-width:6em}
 .entries tr.me td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .p1bar{display:inline-block;height:6px;background:var(--accent);border-radius:2px;vertical-align:middle;margin-right:5px}
+.mixes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.mix{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:8px;padding:7px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit}
+.mix[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--paper))}
+.mix .mx{display:flex;gap:6px;font:700 13px var(--f-body)}
+.mix .mx i{font-style:normal;padding:0 6px;border-radius:4px;color:#fff;font-size:12px}
+.mix .mx i.h{background:var(--honmei)}.mix .mx i.c{background:var(--chuana)}.mix .mx i.o{background:var(--oana)}
+.mix .mx i.z{background:var(--soft);color:var(--sub)}
+.mix .ms{font:500 11.5px var(--f-num);color:var(--sub)}
+.kb{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:4px;color:#fff;white-space:nowrap}
+.kb.honmei{background:var(--honmei)}.kb.chuana{background:var(--chuana)}.kb.oana{background:var(--oana)}
+.sel{border-top:1px solid var(--soft);padding:6px 6px 2px}
+.sel tr.won td{background:color-mix(in srgb,var(--hit) 14%,transparent)}
+details.all{border-top:1px solid var(--soft);padding:6px 14px}
+details.all summary{cursor:pointer;font-size:12.5px;color:var(--sub);padding-block:4px}
+details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .diag{border-top:1px solid var(--soft);padding:10px 14px;display:flex;flex-direction:column;gap:8px}
 .diag-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .diag-h .pin{font:700 26px var(--f-num);line-height:1}
 .diag-h .pin small{font-size:13px}
 .lv{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;color:#fff}
-.lv.strong{background:var(--hit)}.lv.normal{background:var(--accent)}.lv.skip{background:var(--sub)}
+.lv.strong{background:var(--hit)}.lv.normal{background:var(--accent)}.lv.weak{background:var(--sub)}
 .meter{flex:1 1 120px;height:8px;border-radius:4px;background:var(--soft);overflow:hidden;min-width:80px}
 .meter i{display:block;height:100%;background:var(--accent)}
 .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:4px 14px;font-size:12.5px}
@@ -125,7 +140,7 @@ td.r,th.r{text-align:right}
 .coursebars .track i{display:block;height:100%;background:var(--accent)}
 .rbars{display:grid;grid-template-columns:2.6em 1fr;gap:4px 8px;align-items:center;font-size:12.5px}
 .rbars .bar{height:16px}
-@media (max-width:520px){.cands .ev{display:none}.cands td,.cands th{padding:5px 5px}.picks{grid-template-columns:1fr}.pick+.pick{border-left:0;border-top:1px solid var(--soft)}h2{font-size:19px}}
+@media (max-width:520px){.cands .ev,.sel .ev{display:none}.sel td,.sel th{padding:5px 5px}.cands td,.cands th{padding:5px 5px}.picks{grid-template-columns:1fr}.pick+.pick{border-left:0;border-top:1px solid var(--soft)}h2{font-size:19px}}
 @media (prefers-reduced-motion:no-preference){.bar span,.coursebars .track i{transition:width .3s}}
 </style>
 
@@ -133,7 +148,7 @@ td.r,th.r{text-align:right}
   <div class="wrap">
     <div class="brand"><span class="lanes" aria-hidden="true"><i style="background:var(--b1)"></i><i style="background:#555"></i><i style="background:var(--b3)"></i><i style="background:var(--b4)"></i><i style="background:var(--b5)"></i><i style="background:var(--b6)"></i></span>六場ボート予想帳<small id="asof"></small></div>
     <nav role="tablist" aria-label="ページ">
-      <button role="tab" id="t-today" aria-selected="true" data-tab="today">当日の5点予想</button>
+      <button role="tab" id="t-today" aria-selected="true" data-tab="today">当日の3点予想</button>
       <button role="tab" id="t-deme" aria-selected="false" data-tab="deme">出目履歴</button>
       <button role="tab" id="t-racer" aria-selected="false" data-tab="racer">選手検索</button>
       <button role="tab" id="t-perf" aria-selected="false" data-tab="perf">予想の成績</button>
@@ -145,15 +160,18 @@ td.r,th.r{text-align:right}
   <!-- 当日予想 -->
   <section id="p-today" class="stack" role="tabpanel">
     <div>
-      <h2 id="today-h">当日の5点予想</h2>
-      <p class="lede"><b>イン逃げ</b>を軸にした予想です。AIがインの選手の逃げ率・まくられ率・まくり差され率、コース別成績、モーター、平均ST、展示STと展示タイム、外の選手の攻め方、場と風向・風速ごとのイン1着率から「イン逃げ率」を出します。買い目はすべてインが1着の組番から選び、<b>プランA</b>（本命3点＋穴2点）と<b>プランB</b>（本命4点＋穴1点）の5点買いを出します。イン逃げ率が50%未満のレースは「見送り推奨」です。</p>
+      <h2 id="today-h">当日の3点予想</h2>
+      <p class="lede">対象6場の全レースに、3連単の3点買いを出します。AIが120通りそれぞれの当たる確率を出し、オッズで<b>本命</b>（5〜20倍）・<b>中穴</b>（21〜60倍）・<b>大穴</b>（61倍以上）に分けて、各区分で確率が高い順に選びます。下で3点の配分を選んでください。登録番号を入れると、その選手が出るレースだけにしぼれます。</p>
+    </div>
+    <div class="panel stack" style="gap:10px">
+      <div class="row" style="justify-content:space-between"><h3>3点の配分</h3><span class="note">数字は過去6か月で試した的中率と回収率</span></div>
+      <div class="mixes" id="mixes" role="group" aria-label="3点の配分"></div>
     </div>
     <div class="panel stack" style="gap:10px">
       <div class="row">
         <label for="today-num" class="label">登録番号でしぼる</label>
         <input type="text" id="today-num" inputmode="numeric" maxlength="4" placeholder="例 4477" style="width:7em">
         <button class="chip" id="today-clear" type="button">全レース</button>
-        <button class="chip" id="today-target" type="button" aria-pressed="false">買う対象だけ</button>
       </div>
       <div class="row" id="today-st"></div>
     </div>
@@ -218,8 +236,9 @@ td.r,th.r{text-align:right}
       <p class="lede" id="perf-lede"></p>
     </div>
     <div class="grid2" id="perf-kpi"></div>
-    <div class="panel stack" style="gap:10px"><h3>場ごとの成績（買う対象のレース）</h3><div class="tbl"><table id="perf-st"></table></div></div>
-    <div class="panel stack" style="gap:10px"><h3>月ごとの回収率</h3><div class="tbl"><table id="perf-m"></table></div></div>
+    <div class="panel stack" style="gap:10px"><h3>配分ごとの成績</h3><div class="tbl"><table id="perf-mix"></table></div><p class="note">行を押すと、その配分を選びます（当日の予想にも反映されます）。</p></div>
+    <div class="panel stack" style="gap:10px"><h3 id="perf-st-h">場ごとの成績</h3><div class="tbl"><table id="perf-st"></table></div></div>
+    <div class="panel stack" style="gap:10px"><h3 id="perf-m-h">月ごとの成績</h3><div class="tbl"><table id="perf-m"></table></div></div>
     <div class="grid2">
       <div class="panel stack" style="gap:10px"><h3>AIが重視している材料（1着予想）</h3><div class="coursebars" id="perf-imp" style="grid-template-columns:9em 1fr 3.5em"></div></div>
       <div class="panel stack" style="gap:8px"><h3>この数字の読み方</h3><div class="note" id="perf-read"></div></div>
@@ -252,7 +271,8 @@ let S,RC,PR,BT,LOG;
 Promise.all(["stats","racers","predictions","backtest","pred_log"].map(load)).then(([a,b,c,d,e])=>{
   S=a;RC=b;PR=c;BT=d;LOG=e;
   $("#asof").textContent=S?`データ ${S.to} まで`:"";
-  initTabs();renderToday();initDeme();initRacer();renderPerf();
+  mix=store.get("mix"); if(!MIXES.includes(mix)) mix=(BT&&BT.default_mix)||(PR&&PR.default_mix)||"1-1-1";
+  initTabs();renderMixes();renderToday();initDeme();initRacer();renderPerf();
 });
 
 /* ---------- タブ ---------- */
@@ -264,12 +284,27 @@ function initTabs(){
   const h=(location.hash||"").slice(1); show(["today","deme","racer","perf"].includes(h)?h:(store.get("tab")||"today"));
 }
 
+/* ---------- 3点の配分 ---------- */
+const KINDS=["honmei","chuana","oana"], KJ={honmei:"本命",chuana:"中穴",oana:"大穴"};
+const MIXES=["3-0-0","2-1-0","2-0-1","1-2-0","1-1-1","1-0-2","0-3-0","0-2-1","0-1-2","0-0-3"];
+let mix=null;
+const mixArr=m=>m.split("-").map(Number);
+const mixLabel=m=>{const a=mixArr(m);return KINDS.map((k,i)=>`${KJ[k]}${a[i]}`).join("・")};
+function picksOf(z,m){const a=mixArr(m),out=[];KINDS.forEach((k,i)=>((z.cands||{})[k]||[]).slice(0,a[i]).forEach(c=>out.push({...c,kind:k})));return out}
+function setMix(m){mix=m;store.set("mix",m);renderMixes();renderToday();renderPerf()}
+function renderMixes(){
+  $("#mixes").innerHTML=MIXES.map(m=>{const a=mixArr(m),o=BT&&BT.all&&BT.all[m];
+    return `<button class="mix" type="button" data-mix="${m}" aria-pressed="${m===mix}"><span class="mx">${KINDS.map((k,i)=>`<i class="${a[i]?k[0]:"z"}">${KJ[k][0]}${a[i]}</i>`).join("")}</span>
+    <span class="ms">${o?`的中${o.hit_rate}%・回収${o.roi}%`:""}</span></button>`}).join("");
+  document.querySelectorAll("#mixes .mix").forEach(b=>b.onclick=()=>setMix(b.dataset.mix));
+}
+
 /* ---------- 当日予想 ---------- */
-let todaySt="all", onlyTarget=false;
+let todaySt="all";
 function renderToday(){
   if(!PR||!PR.races){$("#today-list").innerHTML='<div class="empty panel">予想データがまだありません。</div>';return}
   const [yy,mm,dd]=PR.date.split("-").map(Number);
-  $("#today-h").textContent=`${mm}月${dd}日の5点予想`;
+  $("#today-h").textContent=`${mm}月${dd}日の3点予想`;
   const num=$("#today-num").value.trim();
   const byNum=num.length===4?PR.races.filter(z=>z.boats.some(b=>String(b.num)===num)):null;
   const open=ORDER.filter(j=>PR.races.some(z=>z.j===j));
@@ -278,46 +313,43 @@ function renderToday(){
     + (ORDER.filter(j=>!open.includes(j)).length?`<span class="note">本日休み：${ORDER.filter(j=>!open.includes(j)).map(j=>ST[j]).join("・")}</span>`:"");
   document.querySelectorAll("#today-st .chip").forEach(b=>b.onclick=()=>{todaySt=b.dataset.st;renderToday()});
   let list=byNum||PR.races; if(todaySt!=="all") list=list.filter(z=>z.j==todaySt);
-  // 集計
-  if(onlyTarget) list=list.filter(z=>!z.skip);
-  const skipped=list.filter(z=>z.skip).length;
-  const done=list.filter(z=>z.result&&z.plan_hit&&!z.skip);
-  const ph=k=>done.filter(z=>z.plan_hit[k]), ret=k=>ph(k).reduce((s,z)=>s+z.result.pay,0), cost=k=>done.reduce((s,z)=>s+100*z.plans[k].length,0);
+  const done=list.filter(z=>z.result&&z.cands);
+  const hits=done.filter(z=>picksOf(z,mix).some(c=>c.combo===z.result.combo));
+  const ret=hits.reduce((s,z)=>s+z.result.pay,0), cost=done.reduce((s,z)=>s+100*picksOf(z,mix).length,0);
   const live=list.filter(z=>z.odds_source==="live").length;
   $("#today-sum").innerHTML=[
-    ["買う対象",`${list.length-skipped}R`,`見送り推奨 ${skipped}R ・ 結果確定 ${done.length}R`],
-    ["プランA（本命3＋穴2）",`${ph("A").length}/${done.length}`,`払戻 ${yen(ret("A"))}円（投資 ${yen(cost("A"))}円）`],
-    ["プランB（本命4＋穴1）",`${ph("B").length}/${done.length}`,`払戻 ${yen(ret("B"))}円（投資 ${yen(cost("B"))}円）`],
+    ["対象レース",`${list.length}R`,`結果確定 ${done.length}R`],
+    [`的中（${mixLabel(mix)}）`,`${hits.length}/${done.length}`,`払戻 ${yen(ret)}円（投資 ${yen(cost)}円）`],
+    ["今日の回収率",cost?`${(ret/cost*100).toFixed(0)}%`:"-","結果が出たレースだけで計算"],
     ["実オッズで判定",`${live}R`,live?"締切前に公式オッズを取得":"推定オッズで判定"]
   ].map(([a,b,c])=>`<div class="panel stat"><span class="label">${a}</span><b>${b}</b><span>${c}</span></div>`).join("");
-  if(num.length===4){
-    const r=RC&&RC.racers[num];
-    if(!byNum.length){
-      const rec=r&&r.recent&&r.recent[0];
-      $("#today-list").innerHTML=`<div class="empty panel">${r?esc(r.name)+"（"+num+"）は":"登録番号 "+num+" の選手は"}本日の対象6場に出走がありません。${rec?`<br>最近の出走：${rec[0]} ${esc(RC.stadium_names[rec[1]])} ${rec[2]}R`:""}</div>`;
-      $("#today-note").textContent="";return}
-  }
+  if(num.length===4&&!byNum.length){
+    const r=RC&&RC.racers[num], rec=r&&r.recent&&r.recent[0];
+    $("#today-list").innerHTML=`<div class="empty panel">${r?esc(r.name)+"（"+num+"）は":"登録番号 "+num+" の選手は"}本日の対象6場に出走がありません。${rec?`<br>最近の出走：${rec[0]} ${esc(RC.stadium_names[rec[1]])} ${rec[2]}R`:""}</div>`;
+    $("#today-note").textContent="";return}
   $("#today-list").innerHTML=list.length?list.map(z=>raceCard(z,num)).join(""):'<div class="empty panel">該当するレースがありません。</div>';
   const after=list.filter(z=>z.made_after_close).length;
-  $("#today-note").innerHTML=`作成 ${esc(PR.generated.replace("T"," "))}。オッズ欄の「推定」は過去の払戻金から学習したAIの見込みで、本物のオッズとはずれます。毎日の自動更新を動かすと、締切25分前から公式の実オッズに置きかわります。`+(after?` 「締切後に作成」の${after}レースは、締切前の情報だけで後から作った検証用の予想です。`:"");
+  $("#today-note").innerHTML=`作成 ${esc(PR.generated.replace("T"," "))}。オッズ欄の「推定」は過去の払戻金から学習したAIの見込みで、本物のオッズとはずれます。締切25分前からは公式の実オッズに置きかわり、本命・中穴・大穴の区分もそのオッズで決め直します。`+(after?` 「締切後に作成」の${after}レースは、締切前の情報だけで後から作った検証用の予想です。`:"");
 }
 function raceCard(z,num){
   const t=z.ca?z.ca.slice(11,16):"";
   const rows=z.boats.map(b=>`<tr class="${num&&String(b.num)===num?"me":""}"><td>${boat(b.b)}</td><td class="nm">${esc(b.name)} <span class="num" style="color:var(--sub);font-size:11.5px">${b.num}</span></td><td>${b.cls}</td><td class="r num">${b.wr??"-"}</td><td class="r num">${b.et?b.et.toFixed(2):"-"}</td><td class="num"><span class="p1bar" style="width:${Math.max(2,b.p1*0.7)}px"></span>${b.p1.toFixed(0)}%</td></tr>`).join("");
-  const PA=(z.plans&&z.plans.A)||[], PB=(z.plans&&z.plans.B)||[];
-  const crow=(c,kind,i)=>{const won=z.result&&c.combo===z.result.combo;
-    return `<tr class="${won?"won":""}"><td><span class="kind ${kind==="h"?"h":"a"}">${kind==="h"?"本命":"穴"}${i+1}</span></td><td>${combo(c.combo)}${won?' <span class="tag hit">的中</span>':""}${c.low?' <span class="tag">期待値低め</span>':""}</td>
-    <td class="r num">${c.odds.toFixed(1)}</td><td class="r num">${(c.p*100).toFixed(1)}%</td><td class="r num ev">${c.ev.toFixed(2)}</td>
-    <td style="text-align:center"><span class="dot ${PA.includes(c.combo)?"":"off"}" aria-label="${PA.includes(c.combo)?"プランAに入る":"入らない"}"></span></td>
-    <td style="text-align:center"><span class="dot ${PB.includes(c.combo)?"":"off"}" aria-label="${PB.includes(c.combo)?"プランBに入る":"入らない"}"></span></td>
-    </tr>`};
-  const cands=`<div class="cands tbl"><table><thead><tr><th>候補</th><th>組番</th><th class="r">${z.odds_source==="live"?"実オッズ":"推定倍率"}</th><th class="r">確率</th><th class="r ev">期待値</th><th style="text-align:center">A</th><th style="text-align:center">B</th></tr></thead><tbody>
-    ${(z.honmei||[]).map((c,i)=>crow(c,"h",i)).join("")}${(z.ana||[]).map((c,i)=>crow(c,"a",i)).join("")}</tbody></table></div>`;
+  const src=z.odds_source==="live"?"実オッズ":"推定倍率";
+  const picks=picksOf(z,mix), pickSet=new Set(picks.map(c=>c.combo));
+  const won=c=>z.result&&c.combo===z.result.combo;
+  const row=(c,mark)=>`<tr class="${won(c)?"won":""} ${mark&&pickSet.has(c.combo)?"picked":""}"><td><span class="kb ${c.kind}">${KJ[c.kind]}</span></td><td>${combo(c.combo)}${won(c)?' <span class="tag hit">的中</span>':""}${c.low?' <span class="tag">期待値低め</span>':""}</td>
+    <td class="r num">${c.odds.toFixed(1)}</td><td class="r num">${(c.p*100).toFixed(1)}%</td><td class="r num ev">${c.ev.toFixed(2)}</td></tr>`;
+  const head=`<thead><tr><th>区分</th><th>組番</th><th class="r">${src}</th><th class="r">確率</th><th class="r ev">期待値</th></tr></thead>`;
+  const sel=`<div class="sel tbl"><table>${head}<tbody>${picks.length?picks.map(c=>row(c,false)).join(""):'<tr><td colspan="5" class="note">この配分に合う組番がありません</td></tr>'}</tbody></table></div>`;
+  const all=KINDS.flatMap(k=>((z.cands||{})[k]||[]).map(c=>({...c,kind:k})));
+  const allT=`<details class="all"><summary>候補をすべて見る（本命・中穴・大穴 各3点）</summary><div class="tbl"><table>${head}<tbody>${all.map(c=>row(c,true)).join("")}</tbody></table></div></details>`;
+  const hit=z.result?(picks.some(won)?'<span class="tag hit">的中</span>':'<span class="tag">不的中</span>'):"";
+  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span>${hit}</div>`:"";
   const WD=["","北","北北東","北東","東北東","東","東南東","南東","南南東","南","南南西","南西","西南西","西","西北西","北西","北北西","無風"];
-  const d=z.in||{}, lvJ={strong:"イン逃げ濃厚",normal:"イン逃げ標準",skip:"見送り推奨"};
+  const d=z.in||{}, lvJ={strong:"イン逃げ濃厚",normal:"イン逃げ標準",weak:"イン弱め"};
   const v=(x,u="%",dg=0)=>x==null?"-":(typeof x==="number"?x.toFixed(dg):x)+u;
   const cmpc=(x,base,hi)=>x==null?"":((hi?x>=base:x<=base)?"good":"bad");
-  const diag=z.in?`<div class="diag"><div class="diag-h"><span class="label">イン逃げ診断</span>${boat(d.b)}<span class="pin">${d.p.toFixed(0)}<small>%</small></span><span class="lv ${d.level}">${lvJ[d.level]}</span><span class="meter" aria-hidden="true"><i style="width:${d.p}%"></i></span></div>
+  const diag=z.in?`<details class="all"><summary>イン逃げ診断（参考）：${boat(d.b)} ${d.p.toFixed(0)}%・${lvJ[d.level]||""}</summary><div class="diag" style="border-top:0;padding-inline:0">
     <div class="facts">
       <div><span>逃げ率（イン${d.in_starts}走）</span><b class="${cmpc(d.nige,50,true)}">${v(d.nige)}</b></div>
       <div><span>まくられ率</span><b class="${cmpc(d.makurare,17,false)}">${v(d.makurare)}</b></div>
@@ -331,20 +363,16 @@ function raceCard(z,num){
       <div><span>場のイン1着率</span><b>${v(d.st_in,"%",1)}</b></div>
       <div><span>この風向のとき</span><b class="${cmpc(d.st_wd_in,d.st_in,true)}">${v(d.st_wd_in,"%",1)}</b></div>
       <div><span>この風速のとき</span><b class="${cmpc(d.st_ws_in,d.st_in,true)}">${v(d.st_ws_in,"%",1)}</b></div>
-    </div></div>`:"";
-  const ptag=k=>z.plan_hit?(z.plan_hit[k]?'<span class="tag hit">的中</span>':'<span class="tag">不的中</span>'):"";
-  const plans=`<div class="plans"><span><b>プランA</b> 本命3＋穴2 ${ptag("A")}</span><span><b>プランB</b> 本命4＋穴1 ${ptag("B")}</span><span class="note">各100円×5点＝500円${z.skip?"・イン逃げ率が低いため見送り推奨":""}</span></div>`;
-  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span></div>`:"";
-  return `<article class="race ${z.skip?"skipped":""}"><div class="race-h"><span class="rn">${z.r}R</span><span class="st">${ST[z.j]}</span>
+    </div></div></details>`:"";
+  return `<article class="race"><div class="race-h"><span class="rn">${z.r}R</span><span class="st">${ST[z.j]}</span>
     ${z.odds_source==="live"?'<span class="tag live">実オッズ</span>':""}${z.made_after_close?'<span class="tag">締切後に作成</span>':""}${!z.has_preview?'<span class="tag">展示前</span>':""}
     <span class="time">締切 ${t}</span><span class="tt">${esc(z.title||"")} ${esc(z.sub||"")}</span></div>
     <div class="tbl"><table class="entries"><thead><tr><th>枠</th><th>選手</th><th>級</th><th class="r">勝率</th><th class="r">展示</th><th>1着率</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${diag}${cands}${plans}${res}
+    ${sel}${allT}${res}${diag}
     <div class="why"><ul>${(z.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div></article>`;
 }
 $("#today-num").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"");if(!e.target.value||e.target.value.length===4)renderToday()});
 $("#today-clear").addEventListener("click",()=>{$("#today-num").value="";todaySt="all";renderToday()});
-$("#today-target").addEventListener("click",e=>{onlyTarget=!onlyTarget;e.currentTarget.setAttribute("aria-pressed",onlyTarget);renderToday()});
 
 /* ---------- 出目履歴 ---------- */
 let demeSt=19, histLimit=40;
@@ -428,7 +456,7 @@ function renderRacer(num){
     <div class="row" style="gap:6px 14px;align-items:baseline"><h2>${esc(r.name)}</h2><span class="num" style="color:var(--sub)">${num}</span><span class="cls ${r.cls==="A1"?"oana":r.cls==="A2"?"chuana":"honmei"}">${r.cls}</span><span class="note">${esc(r.br)}支部 ・ ${r.age??"-"}歳 ・ ${r.wt??"-"}kg ・ 出走表 ${r.asof} 時点</span></div>
     <div class="grid3">${[["勝率",r.wr],["2連対率",r.t2!=null?r.t2+"%":"-"],["3連対率",r.t3!=null?r.t3+"%":"-"],["平均ST",r.ast!=null?r.ast.toFixed(2):"-"],["フライング",`F${r.f??0}`],["出遅れ",`L${r.l??0}`]].map(([a,b])=>`<div class="stat"><span class="label">${a}</span><b>${b??"-"}</b></div>`).join("")}</div>
   </div>
-  ${today.length?`<div class="panel stack" style="gap:8px"><h3>本日の出走（対象6場）</h3><div class="row">${today.map(z=>`<button class="chip" type="button" data-go="${num}">${ST[z.j]} ${z.r}R ${z.ca?z.ca.slice(11,16):""}</button>`).join("")}</div><p class="note">押すと「当日の5点予想」でこの選手のレースだけを表示します。</p></div>`:""}
+  ${today.length?`<div class="panel stack" style="gap:8px"><h3>本日の出走（対象6場）</h3><div class="row">${today.map(z=>`<button class="chip" type="button" data-go="${num}">${ST[z.j]} ${z.r}R ${z.ca?z.ca.slice(11,16):""}</button>`).join("")}</div><p class="note">押すと「当日の3点予想」でこの選手のレースだけを表示します。</p></div>`:""}
   <div class="grid2">
     <div class="panel stack" style="gap:10px"><h3>コース別の1着率（直近1年・全国）</h3>
       <div class="coursebars">${cr.map(x=>`<span>${boat(x.c)}</span><span class="track"><i style="width:${x.w/mx*100}%"></i></span><span class="num" style="text-align:right">${x.n?x.w.toFixed(1)+"%":"-"}</span>`).join("")}</div>
@@ -447,26 +475,33 @@ function renderRacer(num){
 
 /* ---------- 成績 ---------- */
 function renderPerf(){
-  if(!BT){$("#perf-lede").textContent="検証データがありません。";return}
-  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の ${yen(BT.test_races)}レースで試した結果です。イン逃げ率${Math.round((BT.in_skip||0.5)*100)}%以上の「買う対象」は全体の${BT.target_share}%で、そのレースを5点×100円（500円）ずつ買ったと仮定しています。買う対象のレースでインが1着になったのは${BT.in_win_target}%、見送り推奨のレースでは${BT.in_win_skip}%でした。過去の本物のオッズは手に入らないため、「5倍以上」「30倍以上」の判定は推定オッズで行っています。`;
-  const k=(code,col)=>{const o=BT.all[code], pl=BT.plans[code];return `<div class="panel stack" style="gap:8px"><span class="label" style="color:var(--${col})">${pl.name}（${pl.label}・${pl.type}）</span>
+  if(!BT||!BT.all||!BT.all[mix]){$("#perf-lede").textContent="検証データがありません。";return}
+  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の ${yen(BT.test_races)}レースで、毎レース3点を100円ずつ（1レース300円）買ったと仮定した結果です。過去の本物のオッズは手に入らないため、本命・中穴・大穴の区分は推定オッズで決めています。`;
+  const o=BT.all[mix];
+  $("#perf-kpi").innerHTML=`<div class="panel stack" style="gap:8px"><span class="label">選んでいる配分：${mixLabel(mix)}</span>
     <div class="grid3" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><span>レース的中率</span><b>${o.hit_rate}%</b></div><div class="stat"><span>回収率</span><b>${o.roi}%</b></div><div class="stat"><span>当たった時の平均</span><b>${yen(o.avg_ret)}<small style="font-size:12px">円</small></b></div></div>
-    <span class="note">買う対象${yen(o.races)}レース中 ${yen(o.hits)}レースで的中（本命で${yen(o.honmei_hits)}回・穴で${yen(o.ana_hits)}回）。${BT.every?`見送りも含め全レースを買うと 的中${BT.every[code].hit_rate}%・回収${BT.every[code].roi}%。`:""}</span></div>`};
-  $("#perf-kpi").innerHTML=k("A","honmei")+k("B","oana");
-  $("#perf-st").innerHTML=`<thead><tr><th>場</th><th class="r">A 的中率</th><th class="r">A 回収率</th><th class="r">B 的中率</th><th class="r">B 回収率</th></tr></thead><tbody>`+
-    ORDER.map(j=>{const b=BT.by_stadium[j];return `<tr><td>${ST[j]}</td><td class="r num">${b.A.hit_rate}%</td><td class="r num">${b.A.roi}%</td><td class="r num">${b.B.hit_rate}%</td><td class="r num">${b.B.roi}%</td></tr>`}).join("")+"</tbody>";
-  $("#perf-m").innerHTML=`<thead><tr><th>月</th><th class="r">A 的中</th><th class="r">A 回収</th><th class="r">B 的中</th><th class="r">B 回収</th></tr></thead><tbody>`+
-    Object.entries(BT.monthly).map(([m,b])=>`<tr><td class="num">${m}</td><td class="r num">${b.A.hit_rate}%</td><td class="r num" style="color:${b.A.roi>=100?"var(--hit)":"inherit"}">${b.A.roi}%</td><td class="r num">${b.B.hit_rate}%</td><td class="r num" style="color:${b.B.roi>=100?"var(--hit)":"inherit"}">${b.B.roi}%</td></tr>`).join("")+"</tbody>";
-  const NAMES={c:"進入コース",b:"枠番",nwr:"全国勝率",nwr_rank:"勝率のレース内順位",nwr_diff:"勝率の平均との差",cw_rate:"そのコースでの1着率",c2_rate:"そのコースでの2連対率",inside_nwr:"内側の選手の勝率",inside_exst:"内側の展示ST",et:"展示タイム",et_rank:"展示タイム順位",et_diff:"展示タイム差",exst:"展示ST",exst_rank:"展示ST順位",ast:"平均ST",ast_rank:"平均ST順位",n2:"全国2連対率",n3:"全国3連対率",lwr:"当地勝率",lwr_rank:"当地勝率順位",l2:"当地2連対率",l3:"当地3連対率",m2:"モーター2連率",m3:"モーター3連率",m2_rank:"モーター順位",cls:"級別",j:"レース場",r:"レース番号",max_nwr_other:"他艇の最高勝率",a1_cnt:"A1の人数",c_move:"進入の変化",ws:"風速",wd:"風向",wv:"波高",tilt:"チルト",age:"年齢",wt:"体重",f:"フライング数",g:"グレード",c_starts:"そのコースの出走数",b2:"ボート2連率",b3:"ボート3連率"};
+    <span class="note">${yen(o.races)}レース中 ${yen(o.hits)}レースで的中。</span></div>
+    <div class="panel stack" style="gap:8px"><span class="label">配分の選び方</span><p class="note" style="margin:0">本命を増やすほど当たりやすく、回収率も高めでした。大穴を増やすと当たる回数が大きく減り、結果のぶれも大きくなります（大穴3点の回収率は半年で±13%ほどぶれます）。</p></div>`;
+  $("#perf-mix").innerHTML=`<thead><tr><th>配分</th><th class="r">的中率</th><th class="r">回収率</th><th class="r">当たった時の平均</th></tr></thead><tbody>`+
+    MIXES.map(m=>{const x=BT.all[m];return `<tr data-mix="${m}" style="cursor:pointer;${m===mix?"background:color-mix(in srgb,var(--accent) 12%,transparent)":""}"><td>${mixLabel(m)}</td><td class="r num">${x.hit_rate}%</td><td class="r num">${x.roi}%</td><td class="r num">${yen(x.avg_ret)}円</td></tr>`}).join("")+"</tbody>";
+  document.querySelectorAll("#perf-mix tr[data-mix]").forEach(tr=>tr.onclick=()=>setMix(tr.dataset.mix));
+  $("#perf-st-h").textContent=`場ごとの成績（${mixLabel(mix)}）`;
+  $("#perf-st").innerHTML=`<thead><tr><th>場</th><th class="r">的中率</th><th class="r">回収率</th><th class="r">当たった時の平均</th></tr></thead><tbody>`+
+    ORDER.map(j=>{const b=BT.by_stadium[j][mix];return `<tr><td>${ST[j]}</td><td class="r num">${b.hit_rate}%</td><td class="r num" style="color:${b.roi>=100?"var(--hit)":"inherit"}">${b.roi}%</td><td class="r num">${yen(b.avg_ret)}円</td></tr>`}).join("")+"</tbody>";
+  $("#perf-m-h").textContent=`月ごとの成績（${mixLabel(mix)}）`;
+  $("#perf-m").innerHTML=`<thead><tr><th>月</th><th class="r">的中率</th><th class="r">回収率</th></tr></thead><tbody>`+
+    Object.entries(BT.monthly).map(([m,b])=>`<tr><td class="num">${m}</td><td class="r num">${b[mix].hit_rate}%</td><td class="r num" style="color:${b[mix].roi>=100?"var(--hit)":"inherit"}">${b[mix].roi}%</td></tr>`).join("")+"</tbody>";
+  const NAMES={c:"進入コース",b:"枠番",nwr:"全国勝率",nwr_rank:"勝率のレース内順位",nwr_diff:"勝率の平均との差",cw_rate:"そのコースでの1着率",c2_rate:"そのコースでの2連対率",inside_exst:"内側の展示ST",et:"展示タイム",et_rank:"展示タイム順位",et_diff:"展示タイム差",exst:"展示ST",exst_rank:"展示ST順位",ast:"平均ST",ast_rank:"平均ST順位",n2:"全国2連対率",n3:"全国3連対率",lwr:"当地勝率",lwr_rank:"当地勝率順位",l2:"当地2連対率",l3:"当地3連対率",m2:"モーター2連率",m3:"モーター3連率",m2_rank:"モーター順位",cls:"級別",j:"レース場",r:"レース番号",max_nwr_other:"他艇の最高勝率",a1_cnt:"A1の人数",c_move:"進入の変化",ws:"風速",wd:"風向",wv:"波高",tilt:"チルト",age:"年齢",wt:"体重",f:"フライング数",g:"グレード",c_starts:"そのコースの出走数",b2:"ボート2連率",b3:"ボート3連率",in_nwr:"インの選手の勝率",in_cls:"インの選手の級別",in_nige:"インの選手の逃げ率",in_makurare:"インのまくられ率",in_mzasare:"インのまくり差され率",in_sasare:"インの差され率",in_ast:"インの平均ST",in_exst:"インの展示ST",in_et:"インの展示タイム",in_m2:"インのモーター",exst_vs_in:"インとの展示ST差",et_vs_in:"インとの展示タイム差",out_best_exst_gap:"外の最速展示STとの差",out_max_makuri:"外のまくり率",out_max_mzashi:"外のまくり差し率",nige_rate:"逃げ率",makurare_rate:"まくられ率",mzasare_rate:"まくり差され率",sasare_rate:"差され率",makuri_rate:"まくり率",mzashi_rate:"まくり差し率",sashi_rate:"差し率",in_starts:"インの出走数",att_starts:"外からの出走数",st_in_rate:"場のイン1着率",st_wd_in_rate:"風向別のイン1着率",st_ws_in_rate:"風速別のイン1着率",parts:"部品交換",wadj:"体重調整",lwr_rank:"当地勝率順位",inside_nwr:"内側の選手の勝率"};
   const imp=BT.importance||[], mi=imp.length?imp[0][1]:1;
   $("#perf-imp").innerHTML=imp.slice(0,10).map(([n,v])=>`<span>${NAMES[n]||n}</span><span class="track"><i style="width:${v/mi*100}%"></i></span><span class="num" style="text-align:right">${v}%</span>`).join("");
   $("#perf-read").innerHTML=`<p style="margin:0 0 6px">舟券は売上の25%が先に引かれ、残りの75%が払い戻されます。何も考えずに買い続けると、回収率は平均75%に近づきます。</p><p style="margin:0 0 6px">このAIの1着予想は${BT.model.win_hit}%当たり、3連単の一番手は${BT.model.tri_top1}%当たります（でたらめに選ぶと0.8%）。それでも回収率は100%に届いていません。</p><p style="margin:0">予想は判断の材料として使い、1日に使う金額の上限を先に決めておくのがおすすめです。舟券を買えるのは20歳からです。</p>`;
-  const rows=(LOG&&LOG.rows)||[];
-  if(!rows.length){$("#perf-live").innerHTML='<p class="note">自動更新を始めると、毎日の予想と結果がここにたまっていきます。</p>';return}
-  const agg={};rows.filter(r=>!r[10]).forEach(r=>{const a=agg[r[3]]=agg[r[3]]||{n:0,h:0,ret:0,cost:0,pre:0};a.n++;a.h+=r[6];a.ret+=r[7];a.cost+=r[8];a.pre+=r[9]?0:1});
-  $("#perf-live").innerHTML=`<div class="tbl"><table><thead><tr><th>プラン</th><th class="r">レース数</th><th class="r">的中</th><th class="r">的中率</th><th class="r">回収率</th><th class="r">締切前に作成</th></tr></thead><tbody>`+
-    ["A","B"].map(k=>{const a=agg[k]||{n:0,h:0,ret:0,cost:0,pre:0};return `<tr><td>${k==="A"?"プランA（本命3＋穴2）":"プランB（本命4＋穴1）"}</td><td class="r num">${a.n}</td><td class="r num">${a.h}</td><td class="r num">${pct(a.h,a.n).toFixed(1)}%</td><td class="r num">${pct(a.ret,a.cost).toFixed(1)}%</td><td class="r num">${a.pre}</td></tr>`}).join("")+
-    `</tbody></table></div><p class="note">${rows[0][0]} 〜 ${rows[rows.length-1][0]} の記録（見送り推奨のレースは除く）。</p>`;
+  const rows=((LOG&&LOG.rows)||[]).filter(r=>r.length>=10&&LOG.cols&&LOG.cols[4]==="honmei");
+  if(!rows.length){$("#perf-live").innerHTML='<p class="note">毎日の予想と結果が、ここにたまっていきます。</p>';return}
+  const a=mixArr(mix);let n=0,h=0,ret=0,cost=0,pre=0;
+  rows.forEach(r=>{const cs=[r[4],r[5],r[6]].flatMap((s,i)=>(s?s.split("/"):[]).slice(0,a[i]));if(!cs.length)return;n++;cost+=100*cs.length;if(cs.includes(r[7])){h++;ret+=r[8]}pre+=r[9]?0:1});
+  $("#perf-live").innerHTML=`<div class="tbl"><table><thead><tr><th>配分</th><th class="r">レース数</th><th class="r">的中</th><th class="r">的中率</th><th class="r">回収率</th><th class="r">締切前に作成</th></tr></thead><tbody>
+    <tr><td>${mixLabel(mix)}</td><td class="r num">${n}</td><td class="r num">${h}</td><td class="r num">${pct(h,n).toFixed(1)}%</td><td class="r num">${pct(ret,cost).toFixed(1)}%</td><td class="r num">${pre}</td></tr></tbody></table></div>
+    <p class="note">${rows[0][0]} 〜 ${rows[rows.length-1][0]} の記録。</p>`;
 }
 })();
 </script>

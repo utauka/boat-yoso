@@ -1,58 +1,60 @@
-"""買い目の選び方（ここを変えれば予想のクセを調整できます）。
+"""買い目の選び方（3点買い・本命／中穴／大穴の配分を画面で切り替え）。
 
-イン逃げベース:
-  1) AIが「イン（1コースの艇）が1着になる確率＝イン逃げ率」を出す
-     材料: インの選手の逃げ率・まくられ率・まくり差され率・差され率、コース別成績、平均ST、展示ST、
-           外の選手との展示STの差、展示タイム、モーター、外の選手のまくり率・まくり差し率、
-           場のイン1着率（場全体・その風向・その風速）、風向、風速、波 など
-  2) 買い目は「インが1着」の組番だけから選ぶ
-       本命候補: オッズ5倍以上で、当たる確率が高い順に4点
-       穴候補  : オッズ30倍以上で、当たる確率が高い順に2点
-  3) 5点買いのプラン
-       プランA（バランス型）  : 本命の上位3点 ＋ 穴の上位2点
-       プランB（回収率重視型）: 本命の上位4点 ＋ 穴の上位1点
-  4) イン逃げ率が IN_SKIP 未満のレースは「見送り推奨」
+  1) AIが3連単120通りそれぞれの「当たる確率」を出す
+  2) オッズで3つに分ける
+       本命: 5倍以上〜20倍以下
+       中穴: 20倍より上〜60倍以下
+       大穴: 60倍より上
+  3) それぞれの区分で、当たる確率が高い順に3点ずつ候補を出す
+  4) 画面で選んだ配分（例：本命1・中穴1・大穴1）に合わせて、各区分の上位から合計3点を買う
+
+配分は全10通り（MIXES）。画面の初期設定は DEFAULT_MIX です。
 """
 from __future__ import annotations
 
 import numpy as np
 
-from features import PERMS, combo_name
+from features import combo_name
 
-HONMEI_MIN_ODDS = 5.0
-ANA_MIN_ODDS = 30.0
-IN_SKIP = 0.50   # イン逃げ率がこれ未満なら見送り推奨
-IN_STRONG = 0.70  # これ以上なら「イン逃げ濃厚」
-SKIP_EV = 0.8    # 本物のオッズのとき、期待値がこれ未満の買い目に「期待値低め」の印
-
-PLANS = {
-    "A": {"name": "プランA", "label": "本命3＋穴2", "type": "バランス型", "honmei": 3, "ana": 2},
-    "B": {"name": "プランB", "label": "本命4＋穴1", "type": "回収率重視型", "honmei": 4, "ana": 1},
-}
-MAX_HONMEI = max(p["honmei"] for p in PLANS.values())
-MAX_ANA = max(p["ana"] for p in PLANS.values())
-_FIRST = np.array([p[0] + 1 for p in PERMS])
+HONMEI_MIN = 5.0     # 本命の下限（これ未満の組番は買い目にしない）
+HONMEI_MAX = 20.0
+CHUANA_MAX = 60.0
+TOP_N = 3
+POINTS = 3
+SKIP_EV = 0.8        # 本物のオッズのとき、期待値がこれ未満の買い目に「期待値低め」の印
+KINDS = ("honmei", "chuana", "oana")
+MIXES = [(h, c, POINTS - h - c) for h in range(POINTS, -1, -1) for c in range(POINTS - h, -1, -1)]
+DEFAULT_MIX = (1, 1, 1)
 
 
-def in_level(p_in: float) -> str:
-    return "strong" if p_in >= IN_STRONG else "normal" if p_in >= IN_SKIP else "skip"
+def odds_kind(o: float) -> str | None:
+    if o < HONMEI_MIN:
+        return None
+    return "honmei" if o <= HONMEI_MAX else "chuana" if o <= CHUANA_MAX else "oana"
 
 
-def pick_candidates(prob: np.ndarray, odds: np.ndarray, in_boat: int, live: bool = False) -> dict:
+def pick_candidates(prob: np.ndarray, odds: np.ndarray, live: bool = False) -> dict:
     order = np.argsort(-prob)
     rank = np.empty(120, int); rank[order] = np.arange(120)
     ev = prob * odds
-    head = _FIRST == in_boat
-    hon = [int(k) for k in order if head[k] and odds[k] >= HONMEI_MIN_ODDS][:MAX_HONMEI]
-    ana = [int(k) for k in order if head[k] and odds[k] >= ANA_MIN_ODDS and k not in hon][:MAX_ANA]
+    out = {k: [] for k in KINDS}
+    for i in order:
+        k = odds_kind(float(odds[i]))
+        if k and len(out[k]) < TOP_N:
+            out[k].append({"idx": int(i), "combo": combo_name(int(i)), "p": round(float(prob[i]), 4),
+                           "odds": round(float(odds[i]), 1), "ev": round(float(ev[i]), 2), "rank": int(rank[i]) + 1,
+                           "low": bool(live and ev[i] < SKIP_EV)})
+        if all(len(v) >= TOP_N for v in out.values()):
+            break
+    return out
 
-    def pack(i):
-        return {"idx": i, "combo": combo_name(i), "p": round(float(prob[i]), 4), "odds": round(float(odds[i]), 1),
-                "ev": round(float(ev[i]), 2), "rank": int(rank[i]) + 1, "low": bool(live and ev[i] < SKIP_EV)}
 
-    return {"honmei": [pack(i) for i in hon], "ana": [pack(i) for i in ana]}
+def mix_key(mix) -> str:
+    return "-".join(map(str, mix))
 
 
-def plan_combos(cand: dict, plan: str) -> list[str]:
-    p = PLANS[plan]
-    return [c["combo"] for c in cand["honmei"][:p["honmei"]]] + [c["combo"] for c in cand["ana"][:p["ana"]]]
+def mix_combos(cand: dict, mix) -> list[str]:
+    out = []
+    for k, n in zip(KINDS, mix):
+        out += [c["combo"] for c in cand[k][:n]]
+    return out
