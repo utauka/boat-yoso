@@ -1,0 +1,69 @@
+# 開催中の更新：10分ごとに出走表・直前情報を取りこみ、締切25分前からは公式の実オッズで2点予想を出し直す
+name: live-predictions
+
+on:
+  schedule:
+    - cron: "*/10 23 * * *"    # 8:00〜8:50（日本時間）
+    - cron: "*/10 0-13 * * *"  # 9:00〜22:50（日本時間）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: site-update
+  cancel-in-progress: false
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: 今日の日付
+        id: d
+        run: echo "today=$(TZ=Asia/Tokyo date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      # 取得した実オッズは公開せず、GitHubの一時保管（キャッシュ）にだけ置く
+      - uses: actions/cache/restore@v4
+        with:
+          path: data/live_odds.json
+          key: live-odds-${{ steps.d.outputs.today }}-${{ github.run_id }}
+          restore-keys: live-odds-${{ steps.d.outputs.today }}-
+
+      - name: 2点予想を作る（締切が近いレースは実オッズを取得）
+        run: python scripts/predict.py --live-odds --window 25
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/live_odds.json
+          key: live-odds-${{ steps.d.outputs.today }}-${{ github.run_id }}
+
+      - name: ページを作る
+        run: python scripts/build_site.py
+
+      - name: 変更を保存
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add site
+          git commit -m "予想の更新 $(TZ=Asia/Tokyo date '+%F %H:%M')" || echo "変更なし"
+          git pull --rebase
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

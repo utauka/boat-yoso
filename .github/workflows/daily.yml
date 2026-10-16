@@ -1,0 +1,70 @@
+# 毎晩の更新：その日の結果を取りこみ → 出目履歴・選手データ・予想の答え合わせ → サイトを更新
+# 毎週日曜の朝は、AIを最新データで学習し直します。
+name: daily-update
+
+on:
+  schedule:
+    - cron: "40 14 * * *"   # 毎日 23:40（日本時間）
+    - cron: "0 19 * * 6"    # 毎週日曜 4:00（日本時間）学習し直し
+  workflow_dispatch:         # 「Run workflow」ボタンで手動実行もできる
+    inputs:
+      retrain:
+        description: "AIを学習し直す"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: site-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: 結果データを取得（昨日・今日）
+        run: python scripts/fetch.py
+
+      - name: 出目履歴と選手データを集計
+        run: |
+          python scripts/build_stats.py
+          python scripts/build_racers.py
+
+      - name: AIを学習し直す（日曜・手動のみ）
+        if: github.event.schedule == '0 19 * * 6' || inputs.retrain
+        run: python scripts/train.py
+
+      - name: 今日の予想に結果を書きこむ
+        run: python scripts/predict.py
+
+      - name: ページを作る
+        run: python scripts/build_site.py
+
+      - name: 変更を保存
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add data site models
+          git commit -m "毎日の更新 $(TZ=Asia/Tokyo date +%F)" || echo "変更なし"
+          git pull --rebase
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4

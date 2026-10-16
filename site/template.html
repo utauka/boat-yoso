@@ -1,0 +1,415 @@
+<title>六場ボート予想帳</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: 出走表のように「場→レース→艇」の順に縦に積む。上部に固定タブ、本文は1カラム（広い画面では2カラム） */
+:root{
+  --bg:#eef2f4; --paper:#ffffff; --ink:#132231; --sub:#5a6b7a; --line:#d5dde3; --soft:#e4eaee;
+  --accent:#0b6b7d; --accent-ink:#ffffff; --head:#132231; --head-fg:#eef2f4;
+  --honmei:#2563a8; --chuana:#c98a0b; --oana:#c2364a; --hit:#1d8a52;
+  --b1:#ffffff; --b1i:#132231; --b2:#1c1c1c; --b2i:#ffffff; --b3:#d7263d; --b3i:#ffffff;
+  --b4:#1f5fbf; --b4i:#ffffff; --b5:#f2c80f; --b5i:#132231; --b6:#1f9d55; --b6i:#ffffff;
+  --f-display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1720; --paper:#14212c; --ink:#e3ebf1; --sub:#93a6b5; --line:#263744; --soft:#1b2a36;
+  --accent:#3fb3c6; --accent-ink:#06222a; --honmei:#6aa6ec; --chuana:#e8b13d; --oana:#f06b7e; --hit:#4cc584;
+  --b2:#3a3a3a; --head:#070f16; --head-fg:#e3ebf1; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1720; --paper:#14212c; --ink:#e3ebf1; --sub:#93a6b5; --line:#263744; --soft:#1b2a36;
+  --accent:#3fb3c6; --accent-ink:#06222a; --honmei:#6aa6ec; --chuana:#e8b13d; --oana:#f06b7e; --hit:#4cc584;
+  --b2:#3a3a3a; --head:#070f16; --head-fg:#e3ebf1; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--head)}
+.wrap{max-width:1100px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{background:var(--head);color:var(--head-fg);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+header .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding-block:10px 0}
+.brand{font-family:var(--f-display);font-size:20px;letter-spacing:.04em;line-height:1.2;display:flex;align-items:center;gap:10px}
+.brand small{font-family:var(--f-body);font-size:12px;opacity:.7;letter-spacing:0}
+.lanes{display:flex;gap:2px}.lanes i{width:6px;height:18px;display:block;border-radius:1px}
+nav{display:flex;gap:2px;overflow-x:auto;width:100%;scrollbar-width:none}
+nav button{flex:0 0 auto;background:none;border:0;color:inherit;opacity:.65;font:700 14px var(--f-body);padding:10px 12px 12px;cursor:pointer;border-bottom:3px solid transparent}
+nav button[aria-selected="true"]{opacity:1;border-bottom-color:var(--accent)}
+nav button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{padding-block:18px 60px}
+h2{font-family:var(--f-display);font-weight:400;font-size:22px;margin:0;line-height:1.3;text-wrap:balance}
+h3{font-size:16px;margin:0;font-weight:700;text-wrap:balance}
+.lede{color:var(--sub);font-size:13.5px;margin:4px 0 0;max-width:68ch}
+.stack{display:flex;flex-direction:column;gap:16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.label{font-size:11.5px;letter-spacing:.08em;color:var(--sub);font-weight:700}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.chip{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:5px 12px;font:700 13px var(--f-body);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip .cnt{font-family:var(--f-num);font-weight:500;opacity:.75;margin-left:4px}
+input[type=text],select{font:500 15px var(--f-body);color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+input.big{font:700 22px var(--f-num);width:7.5em;letter-spacing:.08em}
+.boat{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:4px;font:700 13px var(--f-num);border:1px solid transparent;flex:0 0 auto}
+.boat.k1{background:var(--b1);color:var(--b1i);border-color:#9aa8b4}.boat.k2{background:var(--b2);color:var(--b2i)}.boat.k3{background:var(--b3);color:var(--b3i)}
+.boat.k4{background:var(--b4);color:var(--b4i)}.boat.k5{background:var(--b5);color:var(--b5i)}.boat.k6{background:var(--b6);color:var(--b6i)}
+.combo{display:inline-flex;gap:3px;align-items:center}.combo .sep{color:var(--sub);font-size:11px}
+.cls{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:4px;color:#fff;white-space:nowrap}
+.cls.honmei{background:var(--honmei)}.cls.chuana{background:var(--chuana)}.cls.oana{background:var(--oana)}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:4px;border:1px solid var(--line);color:var(--sub);white-space:nowrap}
+.tag.hit{border-color:var(--hit);color:var(--hit)}.tag.live{border-color:var(--accent);color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{display:flex;flex-direction:column;gap:2px}.stat b{font:700 24px var(--f-num)}.stat span{font-size:12px;color:var(--sub)}
+/* 積み上げ帯 */
+.bar{display:flex;height:22px;border-radius:4px;overflow:hidden;background:var(--soft)}
+.bar span{display:flex;align-items:center;justify-content:center;font:700 11px var(--f-num);color:#fff;white-space:nowrap;overflow:hidden}
+.bar .h{background:var(--honmei)}.bar .c{background:var(--chuana)}.bar .o{background:var(--oana)}
+.cmp{display:grid;grid-template-columns:4.5em 1fr;gap:6px 10px;align-items:center}
+.cmp .nm{font-weight:700;font-size:14px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--sub)}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.tbl{overflow-x:auto;min-width:0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{font-size:11.5px;letter-spacing:.05em;color:var(--sub);font-weight:700;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--soft);white-space:nowrap}
+td.r,th.r{text-align:right}
+.mini{display:inline-block;height:8px;border-radius:2px;background:var(--accent);vertical-align:middle}
+/* レースカード */
+.race{background:var(--paper);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.race-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:10px 14px;border-bottom:1px solid var(--soft)}
+.race-h .rn{font-family:var(--f-display);font-size:20px;line-height:1}
+.race-h .st{font-weight:700}
+.race-h .tt{color:var(--sub);font-size:12.5px;flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+.race-h .time{margin-left:auto;font:500 13px var(--f-num);color:var(--sub)}
+.entries{width:100%;font-size:13px}
+.entries td{padding:4px 8px}.entries .nm{white-space:normal;min-width:6em}
+.entries tr.me td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.p1bar{display:inline-block;height:6px;background:var(--accent);border-radius:2px;vertical-align:middle;margin-right:5px}
+.picks{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--soft)}
+.pick{padding:10px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.pick+.pick{border-left:1px solid var(--soft)}
+.pick .k{font-size:12px;font-weight:700;letter-spacing:.06em}
+.pick.honmei .k{color:var(--honmei)}.pick.ana .k{color:var(--oana)}
+.pick .meta{font:500 12px var(--f-num);color:var(--sub);display:flex;flex-wrap:wrap;gap:0 10px}
+.pick.won{background:color-mix(in srgb,var(--hit) 12%,transparent)}
+.result{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 14px;border-top:1px solid var(--soft);font-size:13px}
+.why{padding:8px 14px 12px;font-size:12.5px;color:var(--sub);border-top:1px solid var(--soft)}
+.why ul{margin:0;padding-left:1.1em}
+.note{font-size:12.5px;color:var(--sub);max-width:72ch}
+.empty{padding:28px;text-align:center;color:var(--sub)}
+.coursebars{display:grid;grid-template-columns:2.2em 1fr 3.5em;gap:5px 8px;align-items:center;font-size:13px}
+.coursebars .track{background:var(--soft);height:14px;border-radius:3px;overflow:hidden}
+.coursebars .track i{display:block;height:100%;background:var(--accent)}
+.rbars{display:grid;grid-template-columns:2.6em 1fr;gap:4px 8px;align-items:center;font-size:12.5px}
+.rbars .bar{height:16px}
+@media (max-width:520px){.picks{grid-template-columns:1fr}.pick+.pick{border-left:0;border-top:1px solid var(--soft)}h2{font-size:19px}}
+@media (prefers-reduced-motion:no-preference){.bar span,.coursebars .track i{transition:width .3s}}
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><span class="lanes" aria-hidden="true"><i style="background:var(--b1)"></i><i style="background:#555"></i><i style="background:var(--b3)"></i><i style="background:var(--b4)"></i><i style="background:var(--b5)"></i><i style="background:var(--b6)"></i></span>六場ボート予想帳<small id="asof"></small></div>
+    <nav role="tablist" aria-label="ページ">
+      <button role="tab" id="t-today" aria-selected="true" data-tab="today">当日の2点予想</button>
+      <button role="tab" id="t-deme" aria-selected="false" data-tab="deme">出目履歴</button>
+      <button role="tab" id="t-racer" aria-selected="false" data-tab="racer">選手検索</button>
+      <button role="tab" id="t-perf" aria-selected="false" data-tab="perf">予想の成績</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- 当日予想 -->
+  <section id="p-today" class="stack" role="tabpanel">
+    <div>
+      <h2 id="today-h">当日の2点予想</h2>
+      <p class="lede">対象6場のその日の全レースに「本命1点（オッズ5倍以上）」と「穴1点（オッズ30倍以上）」を出します。登録番号を入れると、その選手が出るレースだけにしぼれます。</p>
+    </div>
+    <div class="panel stack" style="gap:10px">
+      <div class="row">
+        <label for="today-num" class="label">登録番号でしぼる</label>
+        <input type="text" id="today-num" inputmode="numeric" maxlength="4" placeholder="例 4477" style="width:7em">
+        <button class="chip" id="today-clear" type="button">全レース</button>
+      </div>
+      <div class="row" id="today-st"></div>
+    </div>
+    <div class="grid3" id="today-sum"></div>
+    <div class="grid2" id="today-list"></div>
+    <p class="note" id="today-note"></p>
+  </section>
+
+  <!-- 出目履歴 -->
+  <section id="p-deme" class="stack" role="tabpanel" hidden>
+    <div>
+      <h2>場別の出目履歴</h2>
+      <p class="lede">3連単の払戻金を倍率にして、<b>本命</b>（20倍以下）・<b>中穴</b>（21〜60倍）・<b>大穴</b>（61倍以上）に分けています。返還や特払いのレースは数に入れていません。</p>
+    </div>
+    <div class="panel stack" style="gap:12px">
+      <div class="row" style="justify-content:space-between">
+        <h3>6場の比較</h3>
+        <div class="row"><label class="label" for="deme-period">期間</label>
+          <select id="deme-period"><option value="730">直近2年</option><option value="365">直近1年</option><option value="182">直近6か月</option><option value="91">直近3か月</option><option value="30">直近30日</option></select></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--honmei)"></i>本命 〜20倍</span><span><i style="background:var(--chuana)"></i>中穴 21〜60倍</span><span><i style="background:var(--oana)"></i>大穴 61倍〜</span></div>
+      <div class="cmp" id="deme-cmp"></div>
+    </div>
+    <div class="row" id="deme-st"></div>
+    <div class="grid3" id="deme-kpi"></div>
+    <div class="grid2">
+      <div class="panel stack" style="gap:10px"><h3>レース番号ごとの割合</h3><div class="rbars" id="deme-byr"></div><p class="note" id="deme-byr-note"></p></div>
+      <div class="panel stack" style="gap:10px"><h3>1着になった進入コース（直近2年）</h3><div class="coursebars" id="deme-course"></div><div class="row" id="deme-tech"></div></div>
+    </div>
+    <div class="panel stack" style="gap:10px">
+      <div class="row" style="justify-content:space-between"><h3>よく出た出目</h3>
+        <div class="row"><label class="label" for="deme-topcls">区分</label><select id="deme-topcls"><option value="all">すべて</option><option value="honmei">本命だけ</option><option value="chuana">中穴だけ</option><option value="oana">大穴だけ</option></select></div></div>
+      <div class="tbl"><table id="deme-top"></table></div>
+    </div>
+    <div class="panel stack" style="gap:10px">
+      <div class="row" style="justify-content:space-between"><h3>レースごとの結果</h3>
+        <div class="row"><select id="deme-histcls" aria-label="区分"><option value="all">すべて</option><option value="honmei">本命</option><option value="chuana">中穴</option><option value="oana">大穴</option></select>
+        <input type="text" id="deme-combo" placeholder="出目 例 1-2-3" style="width:9em" aria-label="出目でしぼる"></div></div>
+      <div class="tbl"><table id="deme-hist"></table></div>
+      <div class="row"><button class="chip" id="deme-more" type="button">もっと見る</button><span class="note" id="deme-hist-n"></span></div>
+    </div>
+  </section>
+
+  <!-- 選手検索 -->
+  <section id="p-racer" class="stack" role="tabpanel" hidden>
+    <div>
+      <h2>選手検索</h2>
+      <p class="lede">4桁の登録番号を入れると、その選手の最新の成績、コース別の成績（直近1年・全国）、6場での成績（直近2年）、直近10走を表示します。</p>
+    </div>
+    <div class="panel row">
+      <label for="racer-num" class="label">登録番号</label>
+      <input type="text" id="racer-num" class="big" inputmode="numeric" maxlength="4" placeholder="4477">
+      <span class="note" id="racer-hint"></span>
+    </div>
+    <div id="racer-out" class="stack"></div>
+  </section>
+
+  <!-- 成績 -->
+  <section id="p-perf" class="stack" role="tabpanel" hidden>
+    <div>
+      <h2>予想の成績</h2>
+      <p class="lede" id="perf-lede"></p>
+    </div>
+    <div class="grid2" id="perf-kpi"></div>
+    <div class="panel stack" style="gap:10px"><h3>場ごとの成績</h3><div class="tbl"><table id="perf-st"></table></div></div>
+    <div class="panel stack" style="gap:10px"><h3>月ごとの回収率</h3><div class="tbl"><table id="perf-m"></table></div></div>
+    <div class="grid2">
+      <div class="panel stack" style="gap:10px"><h3>AIが重視している材料（1着予想）</h3><div class="coursebars" id="perf-imp" style="grid-template-columns:9em 1fr 3.5em"></div></div>
+      <div class="panel stack" style="gap:8px"><h3>この数字の読み方</h3><div class="note" id="perf-read"></div></div>
+    </div>
+    <div class="panel stack" style="gap:10px"><h3>サイトで出した予想の実績</h3><div id="perf-live"></div></div>
+  </section>
+</main>
+
+<!--DATA-->
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ST={2:"戸田",12:"住之江",18:"徳山",19:"下関",22:"福岡",24:"大村"}, ORDER=[19,24,18,22,12,2];
+const CLSJ={honmei:"本命",chuana:"中穴",oana:"大穴"};
+const cls=p=>!p?null:(p<=2000?"honmei":p<=6000?"chuana":"oana");
+const yen=n=>n==null?"-":Number(n).toLocaleString("ja-JP");
+const pct=(a,b)=>b?(a/b*100):0;
+const boat=n=>`<span class="boat k${n}">${n}</span>`;
+const combo=c=>c?`<span class="combo">${c.split(/[-=]/).map(boat).join('<span class="sep">-</span>')}</span>`:"-";
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+async function load(name){
+  const el=document.getElementById("d-"+name);
+  if(el) return JSON.parse(el.textContent);
+  try{const r=await fetch("data/"+name+".json",{cache:"no-cache"});return r.ok?await r.json():null}catch(e){return null}
+}
+
+let S,RC,PR,BT,LOG;
+Promise.all(["stats","racers","predictions","backtest","pred_log"].map(load)).then(([a,b,c,d,e])=>{
+  S=a;RC=b;PR=c;BT=d;LOG=e;
+  $("#asof").textContent=S?`データ ${S.to} まで`:"";
+  initTabs();renderToday();initDeme();initRacer();renderPerf();
+});
+
+/* ---------- タブ ---------- */
+function initTabs(){
+  const btns=[...document.querySelectorAll("nav button")];
+  const show=t=>{btns.forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+    ["today","deme","racer","perf"].forEach(x=>$("#p-"+x).hidden=x!==t);store.set("tab",t)};
+  btns.forEach(b=>b.addEventListener("click",()=>{show(b.dataset.tab);window.scrollTo(0,0)}));
+  const h=(location.hash||"").slice(1); show(["today","deme","racer","perf"].includes(h)?h:(store.get("tab")||"today"));
+}
+
+/* ---------- 当日予想 ---------- */
+let todaySt="all";
+function renderToday(){
+  if(!PR||!PR.races){$("#today-list").innerHTML='<div class="empty panel">予想データがまだありません。</div>';return}
+  const [yy,mm,dd]=PR.date.split("-").map(Number);
+  $("#today-h").textContent=`${mm}月${dd}日の2点予想`;
+  const num=$("#today-num").value.trim();
+  const byNum=num.length===4?PR.races.filter(z=>z.boats.some(b=>String(b.num)===num)):null;
+  const open=ORDER.filter(j=>PR.races.some(z=>z.j===j));
+  $("#today-st").innerHTML=[`<button class="chip" data-st="all" aria-pressed="${todaySt==="all"}">開催場すべて<span class="cnt">${PR.races.length}</span></button>`]
+    .concat(open.map(j=>`<button class="chip" data-st="${j}" aria-pressed="${todaySt==j}">${ST[j]}<span class="cnt">${PR.races.filter(z=>z.j===j).length}</span></button>`)).join("")
+    + (ORDER.filter(j=>!open.includes(j)).length?`<span class="note">本日休み：${ORDER.filter(j=>!open.includes(j)).map(j=>ST[j]).join("・")}</span>`:"");
+  document.querySelectorAll("#today-st .chip").forEach(b=>b.onclick=()=>{todaySt=b.dataset.st;renderToday()});
+  let list=byNum||PR.races; if(todaySt!=="all") list=list.filter(z=>z.j==todaySt);
+  // 集計
+  const done=list.filter(z=>z.result);
+  const hk=k=>done.filter(z=>z[k]&&z[k].hit), ret=k=>hk(k).reduce((s,z)=>s+z.result.pay,0);
+  const live=list.filter(z=>z.odds_source==="live").length;
+  $("#today-sum").innerHTML=[
+    ["対象レース",list.length,`結果確定 ${done.length}`],
+    ["本命1点の的中",`${hk("honmei").length}/${done.length}`,`払戻 ${yen(ret("honmei"))}円（投資 ${yen(done.length*100)}円）`],
+    ["穴1点の的中",`${hk("ana").length}/${done.length}`,`払戻 ${yen(ret("ana"))}円（投資 ${yen(done.length*100)}円）`],
+    ["実オッズで判定",`${live}R`,live?"締切前に公式オッズを取得":"推定オッズで判定"]
+  ].map(([a,b,c])=>`<div class="panel stat"><span class="label">${a}</span><b>${b}</b><span>${c}</span></div>`).join("");
+  if(num.length===4){
+    const r=RC&&RC.racers[num];
+    if(!byNum.length){
+      const rec=r&&r.recent&&r.recent[0];
+      $("#today-list").innerHTML=`<div class="empty panel">${r?esc(r.name)+"（"+num+"）は":"登録番号 "+num+" の選手は"}本日の対象6場に出走がありません。${rec?`<br>最近の出走：${rec[0]} ${esc(RC.stadium_names[rec[1]])} ${rec[2]}R`:""}</div>`;
+      $("#today-note").textContent="";return}
+  }
+  $("#today-list").innerHTML=list.length?list.map(z=>raceCard(z,num)).join(""):'<div class="empty panel">該当するレースがありません。</div>';
+  const after=list.filter(z=>z.made_after_close).length;
+  $("#today-note").innerHTML=`作成 ${esc(PR.generated.replace("T"," "))}。オッズ欄の「推定」は過去の払戻金から学習したAIの見込みで、本物のオッズとはずれます。毎日の自動更新を動かすと、締切25分前から公式の実オッズに置きかわります。`+(after?` 「締切後に作成」の${after}レースは、締切前の情報だけで後から作った検証用の予想です。`:"");
+}
+function raceCard(z,num){
+  const t=z.ca?z.ca.slice(11,16):"";
+  const rows=z.boats.map(b=>`<tr class="${num&&String(b.num)===num?"me":""}"><td>${boat(b.b)}</td><td class="nm">${esc(b.name)} <span class="num" style="color:var(--sub);font-size:11.5px">${b.num}</span></td><td>${b.cls}</td><td class="r num">${b.wr??"-"}</td><td class="r num">${b.et?b.et.toFixed(2):"-"}</td><td class="num"><span class="p1bar" style="width:${Math.max(2,b.p1*0.7)}px"></span>${b.p1.toFixed(0)}%</td></tr>`).join("");
+  const pk=(k,lab)=>{const p=z[k];if(!p) return `<div class="pick ${k}"><span class="k">${lab}</span><span class="meta">該当なし</span></div>`;
+    return `<div class="pick ${k} ${p.hit?"won":""}"><span class="k">${lab}${p.hit?' <span class="tag hit">的中</span>':""}${p.skip?' <span class="tag">見送り推奨</span>':""}</span>${combo(p.combo)}
+    <span class="meta"><span>${z.odds_source==="live"?"実":"推定"}${p.odds.toFixed(1)}倍</span><span>確率${(p.p*100).toFixed(1)}%</span><span>期待値${p.ev.toFixed(2)}</span></span></div>`};
+  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span></div>`:"";
+  return `<article class="race"><div class="race-h"><span class="rn">${z.r}R</span><span class="st">${ST[z.j]}</span>
+    ${z.odds_source==="live"?'<span class="tag live">実オッズ</span>':""}${z.made_after_close?'<span class="tag">締切後に作成</span>':""}${!z.has_preview?'<span class="tag">展示前</span>':""}
+    <span class="time">締切 ${t}</span><span class="tt">${esc(z.title||"")} ${esc(z.sub||"")}</span></div>
+    <div class="tbl"><table class="entries"><thead><tr><th>枠</th><th>選手</th><th>級</th><th class="r">勝率</th><th class="r">展示</th><th>1着率</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="picks">${pk("honmei","本命1点")}${pk("ana","穴1点")}</div>${res}
+    <div class="why"><ul>${(z.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div></article>`;
+}
+$("#today-num").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"");if(!e.target.value||e.target.value.length===4)renderToday()});
+$("#today-clear").addEventListener("click",()=>{$("#today-num").value="";todaySt="all";renderToday()});
+
+/* ---------- 出目履歴 ---------- */
+let demeSt=19, histLimit=40;
+function windowRows(j){
+  const days=+$("#deme-period").value, end=new Date(S.to+"T00:00:00Z"); end.setUTCDate(end.getUTCDate()-days+1);
+  const from=end.toISOString().slice(0,10);
+  return (S.history[j]||[]).filter(r=>r[0]>=from);
+}
+function count(rows){const c={honmei:0,chuana:0,oana:0,void:0,sum:0};rows.forEach(r=>{if(!r[3]||r[3]<100){c.void++;return}c[cls(r[3])]++;c.sum+=r[3]});c.n=c.honmei+c.chuana+c.oana;return c}
+function bar(c){const w=k=>pct(c[k],c.n);return `<div class="bar" role="img" aria-label="本命${w("honmei").toFixed(1)}% 中穴${w("chuana").toFixed(1)}% 大穴${w("oana").toFixed(1)}%">
+  <span class="h" style="width:${w("honmei")}%">${w("honmei")>=9?w("honmei").toFixed(0)+"%":""}</span><span class="c" style="width:${w("chuana")}%">${w("chuana")>=9?w("chuana").toFixed(0)+"%":""}</span><span class="o" style="width:${w("oana")}%">${w("oana")>=9?w("oana").toFixed(0)+"%":""}</span></div>`}
+function initDeme(){
+  if(!S) return;
+  $("#deme-period").value=store.get("period")||"730";
+  $("#deme-st").innerHTML=ORDER.map(j=>`<button class="chip" data-st="${j}" aria-pressed="${j===demeSt}">${ST[j]}</button>`).join("");
+  document.querySelectorAll("#deme-st .chip").forEach(b=>b.onclick=()=>{demeSt=+b.dataset.st;histLimit=40;document.querySelectorAll("#deme-st .chip").forEach(x=>x.setAttribute("aria-pressed",x===b));renderDeme()});
+  ["#deme-period","#deme-topcls","#deme-histcls"].forEach(s=>$(s).addEventListener("change",()=>{store.set("period",$("#deme-period").value);histLimit=40;renderDeme()}));
+  $("#deme-combo").addEventListener("input",()=>{histLimit=40;renderHist()});
+  $("#deme-more").addEventListener("click",()=>{histLimit+=80;renderHist()});
+  renderDeme();
+}
+function renderDeme(){
+  $("#deme-cmp").innerHTML=ORDER.map(j=>{const c=count(windowRows(j));return `<span class="nm">${ST[j]}</span>${bar(c)}`}).join("");
+  const rows=windowRows(demeSt), c=count(rows), st=S.stadiums[demeSt];
+  const avg=c.n?Math.round(c.sum/c.n):0;
+  const med=(()=>{const a=rows.filter(r=>r[3]>=100).map(r=>r[3]).sort((x,y)=>x-y);return a.length?a[a.length>>1]:0})();
+  $("#deme-kpi").innerHTML=[["レース数",yen(c.n),`${rows[0]?rows[0][0]:""} 〜 ${S.to}`],["本命 〜20倍",pct(c.honmei,c.n).toFixed(1)+"%",`${yen(c.honmei)}回`],["中穴 21〜60倍",pct(c.chuana,c.n).toFixed(1)+"%",`${yen(c.chuana)}回`],["大穴 61倍〜",pct(c.oana,c.n).toFixed(1)+"%",`${yen(c.oana)}回`],["平均配当",yen(avg)+"円",`真ん中の値 ${yen(med)}円`]]
+    .map(([a,b,d],i)=>`<div class="panel stat"><span class="label">${a}</span><b style="${i>=1&&i<=3?"color:var(--"+["","honmei","chuana","oana"][i]+")":""}">${b}</b><span>${d}</span></div>`).join("");
+  // レース番号別
+  const byr={};rows.forEach(r=>{(byr[r[1]]=byr[r[1]]||[]).push(r)});
+  $("#deme-byr").innerHTML=Object.keys(byr).sort((a,b)=>a-b).map(r=>`<span class="num">${r}R</span>${bar(count(byr[r]))}`).join("");
+  const early=count(rows.filter(r=>r[1]<=6)),late=count(rows.filter(r=>r[1]>=7));
+  $("#deme-byr-note").textContent=`前半（1〜6R）の本命率 ${pct(early.honmei,early.n).toFixed(1)}%、後半（7〜12R）は ${pct(late.honmei,late.n).toFixed(1)}%。`;
+  // コース
+  const cw=st.course_win, mx=Math.max(...cw);
+  $("#deme-course").innerHTML=cw.map((v,i)=>`<span>${boat(i+1)}</span><span class="track"><i style="width:${v/mx*100}%"></i></span><span class="num r" style="text-align:right">${v.toFixed(1)}%</span>`).join("");
+  const tt=Object.values(st.tech).reduce((a,b)=>a+b,0);
+  $("#deme-tech").innerHTML=Object.entries(st.tech).map(([k,v])=>`<span class="tag">${k} ${pct(v,tt).toFixed(1)}%</span>`).join("");
+  renderTop(rows);renderHist();
+}
+function renderTop(rows){
+  const want=$("#deme-topcls").value, m={};
+  rows.forEach(r=>{if(!r[3]||r[3]<100)return;const k=cls(r[3]);if(want!=="all"&&k!==want)return;const o=m[r[2]]=m[r[2]]||{n:0,s:0,h:0,c:0,o:0,max:0};o.n++;o.s+=r[3];o[k[0]]++;o.max=Math.max(o.max,r[3])});
+  const total=rows.filter(r=>r[3]>=100).length;
+  const top=Object.entries(m).sort((a,b)=>b[1].n-a[1].n).slice(0,20), mx=top.length?top[0][1].n:1;
+  $("#deme-top").innerHTML=`<thead><tr><th>順位</th><th>出目</th><th class="r">回数</th><th class="r">出現率</th><th></th><th class="r">平均配当</th><th class="r">最高</th><th>本/中/大</th></tr></thead><tbody>`+
+    top.map(([k,o],i)=>`<tr><td class="num">${i+1}</td><td>${combo(k)}</td><td class="r num">${o.n}</td><td class="r num">${pct(o.n,total).toFixed(2)}%</td><td><span class="mini" style="width:${o.n/mx*80}px"></span></td><td class="r num">${yen(Math.round(o.s/o.n))}</td><td class="r num">${yen(o.max)}</td><td class="num" style="font-size:12px">${o.h}/${o.c}/${o.o}</td></tr>`).join("")+"</tbody>";
+}
+function renderHist(){
+  const want=$("#deme-histcls").value, cq=$("#deme-combo").value.trim();
+  let rows=windowRows(demeSt).slice().reverse().filter(r=>r[3]>=100);
+  if(want!=="all") rows=rows.filter(r=>cls(r[3])===want);
+  if(/^\d-\d-\d$/.test(cq)) rows=rows.filter(r=>r[2]===cq);
+  $("#deme-hist").innerHTML=`<thead><tr><th>日付</th><th>R</th><th>3連単</th><th class="r">払戻金</th><th class="r">倍率</th><th>区分</th></tr></thead><tbody>`+
+    rows.slice(0,histLimit).map(r=>`<tr><td class="num">${r[0]}</td><td class="num">${r[1]}</td><td>${combo(r[2])}</td><td class="r num">${yen(r[3])}</td><td class="r num">${(r[3]/100).toFixed(1)}</td><td><span class="cls ${cls(r[3])}">${CLSJ[cls(r[3])]}</span></td></tr>`).join("")+"</tbody>";
+  $("#deme-hist-n").textContent=`${Math.min(histLimit,rows.length)} / ${rows.length}件`;
+  $("#deme-more").hidden=histLimit>=rows.length;
+}
+
+/* ---------- 選手検索 ---------- */
+function initRacer(){
+  const inp=$("#racer-num");
+  let def=store.get("racer");
+  if(!def&&PR&&PR.races&&PR.races.length){const all=PR.races.flatMap(z=>z.boats).filter(b=>b.cls==="A1");def=String((all[0]||PR.races[0].boats[0]).num)}
+  inp.value=def||"4477";
+  $("#racer-hint").textContent=RC?`${Object.keys(RC.racers).length.toLocaleString()}人を収録`:"";
+  inp.addEventListener("input",()=>{inp.value=inp.value.replace(/\D/g,"");if(inp.value.length===4){store.set("racer",inp.value);renderRacer(inp.value)}});
+  renderRacer(inp.value);
+}
+function renderRacer(num){
+  const r=RC&&RC.racers[num], out=$("#racer-out");
+  if(!r){out.innerHTML=`<div class="empty panel">登録番号 ${esc(num)} の選手は見つかりませんでした。2024年4月以降に出走した選手を収録しています。</div>`;return}
+  const today=PR&&PR.races?PR.races.filter(z=>z.boats.some(b=>String(b.num)===num)):[];
+  const course=r.course||[];
+  const cr=course.map((k,i)=>({c:i+1,n:k[0],w:pct(k[1],k[0]),t2:pct(k[1]+k[2],k[0]),t3:pct(k[1]+k[2]+k[3],k[0]),st:k[4]}));
+  const mx=Math.max(1,...cr.map(x=>x.w));
+  const local=ORDER.map(j=>{const v=(r.local||{})[j]||[0,0,0,0];return `<tr><td>${ST[j]}</td><td class="r num">${v[0]}</td><td class="r num">${v[0]?pct(v[1],v[0]).toFixed(1)+"%":"-"}</td><td class="r num">${v[0]?pct(v[2],v[0]).toFixed(1)+"%":"-"}</td><td class="r num">${v[0]?pct(v[3],v[0]).toFixed(1)+"%":"-"}</td></tr>`}).join("");
+  const PL={7:"妨",8:"エ",9:"転",10:"落",11:"沈",12:"不",13:"失",14:"F",15:"L",16:"欠"};
+  out.innerHTML=`
+  <div class="panel stack" style="gap:12px">
+    <div class="row" style="gap:6px 14px;align-items:baseline"><h2>${esc(r.name)}</h2><span class="num" style="color:var(--sub)">${num}</span><span class="cls ${r.cls==="A1"?"oana":r.cls==="A2"?"chuana":"honmei"}">${r.cls}</span><span class="note">${esc(r.br)}支部 ・ ${r.age??"-"}歳 ・ ${r.wt??"-"}kg ・ 出走表 ${r.asof} 時点</span></div>
+    <div class="grid3">${[["勝率",r.wr],["2連対率",r.t2!=null?r.t2+"%":"-"],["3連対率",r.t3!=null?r.t3+"%":"-"],["平均ST",r.ast!=null?r.ast.toFixed(2):"-"],["フライング",`F${r.f??0}`],["出遅れ",`L${r.l??0}`]].map(([a,b])=>`<div class="stat"><span class="label">${a}</span><b>${b??"-"}</b></div>`).join("")}</div>
+  </div>
+  ${today.length?`<div class="panel stack" style="gap:8px"><h3>本日の出走（対象6場）</h3><div class="row">${today.map(z=>`<button class="chip" type="button" data-go="${num}">${ST[z.j]} ${z.r}R ${z.ca?z.ca.slice(11,16):""}</button>`).join("")}</div><p class="note">押すと「当日の2点予想」でこの選手のレースだけを表示します。</p></div>`:""}
+  <div class="grid2">
+    <div class="panel stack" style="gap:10px"><h3>コース別の1着率（直近1年・全国）</h3>
+      <div class="coursebars">${cr.map(x=>`<span>${boat(x.c)}</span><span class="track"><i style="width:${x.w/mx*100}%"></i></span><span class="num" style="text-align:right">${x.n?x.w.toFixed(1)+"%":"-"}</span>`).join("")}</div>
+      <div class="tbl"><table><thead><tr><th>コース</th><th class="r">出走</th><th class="r">1着率</th><th class="r">2連対</th><th class="r">3連対</th><th class="r">平均ST</th></tr></thead><tbody>${cr.map(x=>`<tr><td>${boat(x.c)}</td><td class="r num">${x.n}</td><td class="r num">${x.n?x.w.toFixed(1)+"%":"-"}</td><td class="r num">${x.n?x.t2.toFixed(1)+"%":"-"}</td><td class="r num">${x.n?x.t3.toFixed(1)+"%":"-"}</td><td class="r num">${x.st!=null?x.st.toFixed(2):"-"}</td></tr>`).join("")}</tbody></table></div></div>
+    <div class="panel stack" style="gap:10px"><h3>6場での成績（直近2年）</h3>
+      <div class="tbl"><table><thead><tr><th>場</th><th class="r">出走</th><th class="r">1着率</th><th class="r">2連対</th><th class="r">3連対</th></tr></thead><tbody>${local}</tbody></table></div></div>
+  </div>
+  <div class="panel stack" style="gap:10px"><h3>直近10走</h3><div class="tbl"><table><thead><tr><th>日付</th><th>場</th><th>R</th><th>枠</th><th>進入</th><th class="r">ST</th><th>着</th></tr></thead><tbody>
+    ${(r.recent||[]).map(x=>`<tr><td class="num">${x[0]}</td><td>${esc(RC.stadium_names[x[1]])}</td><td class="num">${x[2]}</td><td>${boat(x[3])}</td><td class="num">${x[4]??"-"}</td><td class="r num">${x[5]!=null?x[5].toFixed(2):"-"}</td><td class="num" style="font-weight:700;color:${x[6]===1?"var(--oana)":"inherit"}">${x[6]<=6?x[6]:(PL[x[6]]||"-")}</td></tr>`).join("")}</tbody></table></div></div>`;
+  out.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{$("#today-num").value=b.dataset.go;todaySt="all";renderToday();document.querySelector('nav button[data-tab="today"]').click()});
+}
+
+/* ---------- 成績 ---------- */
+function renderPerf(){
+  if(!BT){$("#perf-lede").textContent="検証データがありません。";return}
+  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の ${yen(BT.test_races)}レースで、毎レース本命1点・穴1点を100円ずつ買ったと仮定した結果です。過去の本物のオッズは手に入らないため、「5倍以上」「30倍以上」の判定は推定オッズで行っています。`;
+  const k=(lab,o,col)=>`<div class="panel stack" style="gap:8px"><span class="label" style="color:var(--${col})">${lab}</span>
+    <div class="grid3" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><span>的中率</span><b>${o.hit_rate}%</b></div><div class="stat"><span>回収率</span><b>${o.roi}%</b></div><div class="stat"><span>当たった時の平均</span><b>${yen(o.avg_ret)}<small style="font-size:12px">円</small></b></div></div>
+    <span class="note">${yen(o.bets)}回買って${yen(o.hits)}回的中。実際の払戻も${lab.startsWith("本命")?"5倍":"30倍"}以上だった的中は ${o.strict_rate}%。</span></div>`;
+  $("#perf-kpi").innerHTML=k("本命1点（5倍以上）",BT.all.honmei,"honmei")+k("穴1点（30倍以上）",BT.all.ana,"oana");
+  $("#perf-st").innerHTML=`<thead><tr><th>場</th><th class="r">本命 的中率</th><th class="r">本命 回収率</th><th class="r">穴 的中率</th><th class="r">穴 回収率</th></tr></thead><tbody>`+
+    ORDER.map(j=>{const b=BT.by_stadium[j];return `<tr><td>${ST[j]}</td><td class="r num">${b.honmei.hit_rate}%</td><td class="r num">${b.honmei.roi}%</td><td class="r num">${b.ana.hit_rate}%</td><td class="r num">${b.ana.roi}%</td></tr>`}).join("")+"</tbody>";
+  $("#perf-m").innerHTML=`<thead><tr><th>月</th><th class="r">本命 的中</th><th class="r">本命 回収</th><th class="r">穴 的中</th><th class="r">穴 回収</th></tr></thead><tbody>`+
+    Object.entries(BT.monthly).map(([m,b])=>`<tr><td class="num">${m}</td><td class="r num">${b.honmei.hit_rate}%</td><td class="r num" style="color:${b.honmei.roi>=100?"var(--hit)":"inherit"}">${b.honmei.roi}%</td><td class="r num">${b.ana.hit_rate}%</td><td class="r num" style="color:${b.ana.roi>=100?"var(--hit)":"inherit"}">${b.ana.roi}%</td></tr>`).join("")+"</tbody>";
+  const NAMES={c:"進入コース",b:"枠番",nwr:"全国勝率",nwr_rank:"勝率のレース内順位",nwr_diff:"勝率の平均との差",cw_rate:"そのコースでの1着率",c2_rate:"そのコースでの2連対率",inside_nwr:"内側の選手の勝率",inside_exst:"内側の展示ST",et:"展示タイム",et_rank:"展示タイム順位",et_diff:"展示タイム差",exst:"展示ST",exst_rank:"展示ST順位",ast:"平均ST",ast_rank:"平均ST順位",n2:"全国2連対率",n3:"全国3連対率",lwr:"当地勝率",lwr_rank:"当地勝率順位",l2:"当地2連対率",l3:"当地3連対率",m2:"モーター2連率",m3:"モーター3連率",m2_rank:"モーター順位",cls:"級別",j:"レース場",r:"レース番号",max_nwr_other:"他艇の最高勝率",a1_cnt:"A1の人数",c_move:"進入の変化",ws:"風速",wd:"風向",wv:"波高",tilt:"チルト",age:"年齢",wt:"体重",f:"フライング数",g:"グレード",c_starts:"そのコースの出走数",b2:"ボート2連率",b3:"ボート3連率"};
+  const imp=BT.importance||[], mi=imp.length?imp[0][1]:1;
+  $("#perf-imp").innerHTML=imp.slice(0,10).map(([n,v])=>`<span>${NAMES[n]||n}</span><span class="track"><i style="width:${v/mi*100}%"></i></span><span class="num" style="text-align:right">${v}%</span>`).join("");
+  $("#perf-read").innerHTML=`<p style="margin:0 0 6px">舟券は売上の25%が先に引かれ、残りの75%が払い戻されます。何も考えずに買い続けると、回収率は平均75%に近づきます。</p><p style="margin:0 0 6px">このAIの1着予想は${BT.model.win_hit}%当たり、3連単の一番手は${BT.model.tri_top1}%当たります（でたらめに選ぶと0.8%）。それでも回収率は100%に届いていません。</p><p style="margin:0">予想は判断の材料として使い、1日に使う金額の上限を先に決めておくのがおすすめです。舟券を買えるのは20歳からです。</p>`;
+  const rows=(LOG&&LOG.rows)||[];
+  if(!rows.length){$("#perf-live").innerHTML='<p class="note">自動更新を始めると、毎日の予想と結果がここにたまっていきます。</p>';return}
+  const agg={};rows.forEach(r=>{const a=agg[r[3]]=agg[r[3]]||{n:0,h:0,ret:0,pre:0};a.n++;a.h+=r[7];a.ret+=r[8];a.pre+=r[9]?0:1});
+  $("#perf-live").innerHTML=`<div class="tbl"><table><thead><tr><th>種類</th><th class="r">予想数</th><th class="r">的中</th><th class="r">的中率</th><th class="r">回収率</th><th class="r">締切前に作成</th></tr></thead><tbody>`+
+    ["honmei","ana"].map(k=>{const a=agg[k]||{n:0,h:0,ret:0,pre:0};return `<tr><td>${k==="honmei"?"本命1点":"穴1点"}</td><td class="r num">${a.n}</td><td class="r num">${a.h}</td><td class="r num">${pct(a.h,a.n).toFixed(1)}%</td><td class="r num">${pct(a.ret,a.n*100).toFixed(1)}%</td><td class="r num">${a.pre}</td></tr>`}).join("")+
+    `</tbody></table></div><p class="note">${rows[0][0]} 〜 ${rows[rows.length-1][0]} の記録。</p>`;
+}
+})();
+</script>

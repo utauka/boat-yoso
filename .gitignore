@@ -1,0 +1,4 @@
+data/live_odds.json
+__pycache__/
+*.pyc
+dist/
