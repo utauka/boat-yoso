@@ -27,7 +27,10 @@ def main():
     course = defaultdict(lambda: [[0, 0, 0, 0, 0.0, 0] for _ in range(6)])  # 出走,1着,2着,3着,ST合計,ST数
     local = defaultdict(lambda: defaultdict(lambda: [0, 0, 0, 0]))         # 場 → 出走,1着,2連,3連
     recent = defaultdict(list)
+    style = defaultdict(lambda: [0] * 9)  # イン出走,逃げ,まくられ,まくり差され,差され,外出走,まくり,まくり差し,差し
     for x in sorted(res_all, key=lambda z: (z["d"], z["r"])):
+        t = x.get("t")
+        win = next((z[1] for z in x["boats"] if z[4] == 1), None)
         for b, num, c, st, pl in x["boats"]:
             if not num:
                 continue
@@ -48,6 +51,13 @@ def main():
                 if pl in (1, 2): k[2] += 1
                 if pl in (1, 2, 3): k[3] += 1
             recent[num].append([x["d"], x["j"], x["r"], b, c, st, pl])
+            if x["d"] >= y1 and c and t is not None and win is not None:
+                k = style[num]; won = win == num
+                if c == 1:
+                    k[0] += 1; k[1] += won and t == 1; k[2] += (not won) and t == 3
+                    k[3] += (not won) and t == 4; k[4] += (not won) and t == 2
+                else:
+                    k[5] += 1; k[6] += won and t == 3; k[7] += won and t == 4; k[8] += won and t == 2
 
     out = {}
     for num_s, m in master.items():
@@ -60,6 +70,7 @@ def main():
             "course": [[k[0], k[1], k[2], k[3], round(k[4] / k[5], 2) if k[5] else None] for k in cs] if cs else None,
             "local": {str(j): v for j, v in local.get(num, {}).items()},
             "recent": list(reversed(recent.get(num, [])[-10:])),
+            "style": [int(v) for v in style[num]] if num in style else None,
         }
     write_json(SITE_DATA / "racers.json", {"to": last, "racers": out,
                                             "stadium_names": {str(k): v for k, v in ALL_STADIUM_NAMES.items()}})

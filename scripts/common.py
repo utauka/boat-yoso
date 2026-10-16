@@ -275,7 +275,7 @@ def slim_result(x: dict) -> dict | None:
     if not boats:
         return None
     tri = (x.get("pay") or {}).get("trifecta") or []
-    return {"d": x["d"], "j": x["j"], "r": x["r"], "boats": boats, "tri": tri[:1]}
+    return {"d": x["d"], "j": x["j"], "r": x["r"], "t": x.get("tech"), "boats": boats, "tri": tri[:1]}
 
 
 def write_json(path: Path, obj, pretty=False):

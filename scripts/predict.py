@@ -19,9 +19,9 @@ import pandas as pd
 
 from common import (CLASS_NAMES, DATA, JST, MODELS, SITE_DATA, STADIUMS, env_local_root, load_day_raw, normalize,
                     payout_class, read_store, write_json)
-from features import COMBO_INDEX, CourseHistory, combo_name, prep, race_rows
+from features import COMBO_INDEX, CourseHistory, combo_name, in_diagnosis, prep, race_rows
 from odds import fetch_odds3t
-from strategy import PLANS, pick_candidates, plan_combos
+from strategy import IN_SKIP, PLANS, in_level, pick_candidates, plan_combos
 from train import est_odds, predict_probs
 
 PRED = SITE_DATA / "predictions.json"
@@ -36,26 +36,19 @@ def load_models():
     return m, om, meta
 
 
-def reasons(x: dict, p1: np.ndarray) -> list[str]:
+def reasons(x: dict, p1: np.ndarray, diag: dict) -> list[str]:
     boats = x["boats"]
-    out = []
-    best = int(np.argmax(p1))
-    b = boats[best]
-    out.append(f'{b["b"]}号艇 {b.get("name","")}（{CLASS_NAMES.get(b.get("cls"),"")}・勝率{b.get("nwr")}）の1着率{p1[best]*100:.0f}%')
-    ets = [(bb.get("ex") or {}).get("et") for bb in boats]
-    if all(ets):
-        k = int(np.argmin(ets))
-        out.append(f'展示タイム1位は{boats[k]["b"]}号艇（{ets[k]:.2f}）')
-    m2 = [bb.get("m2") or 0 for bb in boats]
-    k = int(np.argmax(m2))
-    out.append(f'モーター2連率トップは{boats[k]["b"]}号艇（{m2[k]:.0f}%）')
-    exst = [(bb.get("ex") or {}).get("st") for bb in boats]
-    if all(v is not None for v in exst):
-        k = int(np.argmin(exst))
-        out.append(f'展示スタート最速は{boats[k]["b"]}号艇（{exst[k]:.2f}）')
-    moves = [bb["b"] for bb in boats if (bb.get("ex") or {}).get("c") and bb["ex"]["c"] != bb["b"]]
-    if moves:
-        out.append("進入変化あり（" + "・".join(f'{m}号艇' for m in moves) + "）")
+    ib = diag["b"]
+    b = boats[ib - 1]
+    out = [f'イン{ib}号艇 {b.get("name","")}（{CLASS_NAMES.get(b.get("cls"),"")}）のイン逃げ率 {p1[ib-1]*100:.0f}%']
+    if diag.get("nige") is not None:
+        out.append(f'この選手のイン成績（直近1年{diag["in_starts"]}走）: 逃げ{diag["nige"]:.0f}%・まくられ{diag["makurare"]:.0f}%・まくり差され{diag["mzasare"]:.0f}%')
+    if diag.get("gap") is not None:
+        g = diag["gap"]
+        out.append(f'展示ST: イン{diag["exst"]:.2f}／外の最速との差 {g:+.2f}' + ("（外の方が速い）" if g < 0 else ""))
+    others = [k for k in range(6) if k != ib - 1]
+    best = max(others, key=lambda k: p1[k])
+    out.append(f'逆転の一番手は{boats[best]["b"]}号艇（1着率{p1[best]*100:.0f}%）')
     return out
 
 
@@ -78,7 +71,7 @@ def main():
     if live_store.get("date") != day.isoformat():
         live_store = {"date": day.isoformat(), "odds": {}}
     models, om, meta = load_models()
-    hist = CourseHistory(read_store("results_all"))
+    hist = CourseHistory(read_store("results_all"), read_store("races6"))
     hist.advance(day.isoformat())
 
     out_races = []
@@ -88,12 +81,16 @@ def main():
             continue
         df = prep(pd.DataFrame(rows))
         p1, p2, p3, P = predict_probs(models, df)
+        diag = in_diagnosis(rows)
+        ib = diag["b"]
+        p_in = float(p1[0][ib - 1])
+        diag.update(p=round(p_in * 100, 1), level=in_level(p_in))
         O = est_odds(om, df, meta["odds_correction"])[0]
         ca = dt.datetime.fromisoformat(x["ca"]).replace(tzinfo=JST) if x.get("ca") else None
         closed = bool(ca and now >= ca)
         old = prev_races.get((x["j"], x["r"]))
 
-        if old and old.get("frozen") and "plans" in old:
+        if old and old.get("frozen") and "in" in old:
             item = old  # 締切前に確定した予想を残す
         else:
             odds_src, live = "est", None
@@ -111,7 +108,7 @@ def main():
                     if k in COMBO_INDEX:
                         O_use[COMBO_INDEX[k]] = v
                 odds_src = "live"
-            pk = pick_candidates(P[0], O_use, live=odds_src == "live")
+            pk = pick_candidates(P[0], O_use, ib, live=odds_src == "live")
             top = np.argsort(-P[0])[:6]
             item = {
                 "j": x["j"], "r": x["r"], "ca": x.get("ca"), "title": x.get("title"), "sub": x.get("sub"),
@@ -123,9 +120,10 @@ def main():
                           for i, b in enumerate(x["boats"])],
                 "honmei": pk["honmei"], "ana": pk["ana"], "odds_source": odds_src,
                 "plans": {k: plan_combos(pk, k) for k in PLANS},
+                "in": diag, "skip": p_in < IN_SKIP,
                 "top": [{"c": combo_name(int(i)), "p": round(float(P[0][i]) * 100, 1), "odds": round(float(O_use[i]), 1)}
                         for i in top],
-                "reasons": reasons(x, p1[0]),
+                "reasons": reasons(x, p1[0], diag),
                 "made_at": now.isoformat(timespec="minutes"),
                 "made_after_close": closed,
                 "frozen": closed,
@@ -142,11 +140,11 @@ def main():
         out_races.append(item)
 
     write_json(LIVE, live_store)
-    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "plans": PLANS,
+    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "plans": PLANS, "in_skip": IN_SKIP,
                       "stadiums": {str(j): n for j, n in STADIUMS.items()}, "races": out_races})
 
     # 実績ログ（結果が出たレースだけ）: プランごとに 1行
-    COLS = ["date", "j", "r", "plan", "combos", "odds_source", "hit", "ret", "cost", "after_close"]
+    COLS = ["date", "j", "r", "plan", "combos", "odds_source", "hit", "ret", "cost", "after_close", "skip"]
     log = json.loads(LOG.read_text()) if LOG.exists() else {}
     keep = [r for r in log.get("rows", []) if r[0] != day.isoformat()] if log.get("cols") == COLS else []
     for z in out_races:
@@ -155,7 +153,8 @@ def main():
         for k, combos in z["plans"].items():
             hit = z["result"]["combo"] in combos
             keep.append([day.isoformat(), z["j"], z["r"], k, "/".join(combos), z["odds_source"], int(hit),
-                         z["result"]["pay"] if hit else 0, 100 * len(combos), int(bool(z.get("made_after_close")))])
+                         z["result"]["pay"] if hit else 0, 100 * len(combos), int(bool(z.get("made_after_close"))),
+                         int(bool(z.get("skip")))])
     keep.sort()
     write_json(LOG, {"cols": COLS, "rows": keep})
     done = [z for z in out_races if z.get("result")]
