@@ -19,7 +19,7 @@ import pandas as pd
 from common import MODELS, SITE_DATA, STADIUMS, payout_class, read_store, write_json
 from features import (COMBO_INDEX, FEATURES, ODDS_FEATS, PERMS, build_frame, combo_frame, combo_name,
                       trifecta_probs)
-from strategy import pick_two
+from strategy import PLANS, pick_candidates
 
 PARAMS = dict(objective="binary", learning_rate=0.04, num_leaves=31, min_data_in_leaf=60,
               feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1)
@@ -113,47 +113,46 @@ def main():
     cls_ok = np.mean([payout_class(a * 100) == payout_class(e * 100) for a, e in zip(ao, eo)])
     print(f"推定オッズと実際の払戻の相関 {corr:.2f}／本命・中穴・大穴の区分一致 {cls_ok:.1%}")
 
-    # ---- 3) 2点予想のバックテスト
+    # ---- 3) 5点買いプランのバックテスト（1レースにつき 100円×5点＝500円）
     rows = []
     stad = te["j"].astype(int).to_numpy()[::6]
     dates = te["d"].to_numpy()[::6]
     for n in range(len(te_keys)):
         if not valid[n]:
             continue
-        pk = pick_two(P[n], O[n])
-        for kind in ("honmei", "ana"):
-            c = pk[kind]
-            if c is None:
-                continue
-            hit = c["idx"] == wc[n]
-            rows.append({"kind": kind, "j": int(stad[n]), "d": dates[n], "hit": bool(hit),
-                         "strict": bool(hit and wp[n] >= (500 if kind == "honmei" else 3000)),
-                         "ret": int(wp[n]) if hit else 0, "ev": c["ev"], "p": c["p"], "odds": c["odds"]})
+        cand = pick_candidates(P[n], O[n])
+        win = combo_name(int(wc[n]))
+        for plan, cfg in PLANS.items():
+            hon = [c["combo"] for c in cand["honmei"][:cfg["honmei"]]]
+            ana = [c["combo"] for c in cand["ana"][:cfg["ana"]]]
+            hit = win in hon or win in ana
+            rows.append({"plan": plan, "j": int(stad[n]), "d": dates[n], "hit": bool(hit), "hh": win in hon,
+                         "ha": win in ana, "ret": int(wp[n]) if hit else 0, "cost": 100 * (len(hon) + len(ana))})
     bt = pd.DataFrame(rows)
 
     def summary(sub):
         if len(sub) == 0:
-            return {"bets": 0, "hits": 0, "hit_rate": 0, "roi": 0, "avg_ret": 0}
-        return {"bets": int(len(sub)), "hits": int(sub["hit"].sum()), "hit_rate": round(sub["hit"].mean() * 100, 1),
-                "roi": round(sub["ret"].sum() / (len(sub) * 100) * 100, 1),
-                "strict_rate": round(sub["strict"].mean() * 100, 1),
-                "avg_ret": int(sub.loc[sub["hit"], "ret"].mean()) if sub["hit"].any() else 0}
+            return {"races": 0, "hits": 0, "hit_rate": 0, "roi": 0, "avg_ret": 0, "honmei_hits": 0, "ana_hits": 0}
+        return {"races": int(len(sub)), "hits": int(sub["hit"].sum()), "hit_rate": round(sub["hit"].mean() * 100, 1),
+                "roi": round(sub["ret"].sum() / sub["cost"].sum() * 100, 1),
+                "avg_ret": int(sub.loc[sub["hit"], "ret"].mean()) if sub["hit"].any() else 0,
+                "honmei_hits": int(sub["hh"].sum()), "ana_hits": int(sub["ha"].sum())}
 
     report = {"generated": dt.datetime.now().isoformat(timespec="minutes"), "train_to": cut, "test_from": cut,
-              "test_to": last, "test_races": int(valid.sum()),
+              "test_to": last, "test_races": int(valid.sum()), "plans": PLANS,
               "model": {"win_hit": round(hit1 * 100, 1), "tri_top1": round(top1 * 100, 1), "logloss": round(ll, 3),
                         "odds_corr": round(corr, 2), "odds_class_match": round(cls_ok * 100, 1), "odds_correction": round(correction, 3)},
-              "all": {k: summary(bt[bt["kind"] == k]) for k in ("honmei", "ana")},
-              "by_stadium": {str(j): {k: summary(bt[(bt["kind"] == k) & (bt["j"] == j)]) for k in ("honmei", "ana")}
+              "all": {k: summary(bt[bt["plan"] == k]) for k in PLANS},
+              "by_stadium": {str(j): {k: summary(bt[(bt["plan"] == k) & (bt["j"] == j)]) for k in PLANS}
                              for j in STADIUMS},
-              "monthly": {m: {k: summary(bt[(bt["kind"] == k) & (bt["d"].str[:7] == m)]) for k in ("honmei", "ana")}
+              "monthly": {m: {k: summary(bt[(bt["plan"] == k) & (bt["d"].str[:7] == m)]) for k in PLANS}
                           for m in sorted(bt["d"].str[:7].unique())}}
     report["odds_correction"] = round(correction, 3)
     print(f"推定オッズの補正係数 {correction:.3f}")
     print(json.dumps(report["all"], ensure_ascii=False))
     for j in STADIUMS:
         b = report["by_stadium"][str(j)]
-        print(f'  {STADIUMS[j]} 本命 的中{b["honmei"]["hit_rate"]}% 回収{b["honmei"]["roi"]}% ／ 穴 的中{b["ana"]["hit_rate"]}% 回収{b["ana"]["roi"]}%')
+        print(f'  {STADIUMS[j]} A 的中{b["A"]["hit_rate"]}% 回収{b["A"]["roi"]}% ／ B 的中{b["B"]["hit_rate"]}% 回収{b["B"]["roi"]}%')
 
     # ---- 本番用：全期間で学習し直して保存
     print("全期間で学習し直して保存…")
