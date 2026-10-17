@@ -21,7 +21,7 @@ from common import (CLASS_NAMES, DATA, JST, MODELS, SITE_DATA, env_local_root, l
                     payout_class, read_store, write_json)
 from features import COMBO_INDEX, CourseHistory, combo_name, prep, race_rows
 from odds import fetch_odds3t
-from strategy import HITP_MIN, MAX_UNITS, SYN_MAX, SYN_MIN, TARGET_STADIUMS, UNIT, axis_pick, return_per_100
+from strategy import HITP_MIN, MAX_UNITS, MIN_UNITS, SYN_MAX, SYN_MIN, TARGET_STADIUMS, UNIT, axis_pick, return_per_100
 from train import est_odds, predict_probs
 
 PRED = SITE_DATA / "predictions.json"
@@ -158,7 +158,7 @@ def main():
         out_races.append(item)
 
     write_json(LIVE, live_store)
-    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "hitp_min": HITP_MIN, "syn": [SYN_MIN, SYN_MAX], "max_stake": MAX_UNITS * UNIT,
+    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "hitp_min": HITP_MIN, "syn": [SYN_MIN, SYN_MAX], "stake_range": [MIN_UNITS * UNIT, MAX_UNITS * UNIT],
                       "stadiums": {str(j): n for j, n in TARGET_STADIUMS.items()}, "races": out_races})
 
     # 実績ログ（結果が出たレースだけ）

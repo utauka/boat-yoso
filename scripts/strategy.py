@@ -3,10 +3,11 @@
   対象: 戸田・徳山・大村
   1) AIが3連単120通りそれぞれの「当たる確率」を出す
   2) 6艇それぞれを「軸」（1着固定）にして、2着・3着の組み合わせを当たる確率が高い順に1点ずつ足していく
-  3) 1レースの上限は500円（100円×5口）。点数は最大5点で、各買い目に100円単位で配分する
+  3) 1レースは500〜1,000円（100円×5〜10口）。点数は最大10点で、各買い目に100円単位で配分する
      （当たったときの払戻ができるだけそろうよう、払戻が少ない買い目に口を足していく）
      合成オッズ = どれが当たっても戻る最低倍率（最低払戻 ÷ 購入額）が5〜12倍に入る買い方だけを候補にする
   4) 候補の中で「当たる確率の合計」がいちばん高い買い方を選ぶ（軸と点数が決まる）
+     金額は、合成オッズが5〜12倍に入る一番少ない金額にする（同じ的中確率なら安い方）
   5) 展示が出ていて、当たる確率の合計（的中確率）が HITP_MIN 以上なら「買う」、それ未満は見送り
      （期待値 = 的中確率 × 合成オッズ は参考表示。期待値で選ぶと検証のたびに成績が大きくぶれたため）
 """
@@ -20,7 +21,8 @@ TARGET_STADIUMS = {2: "戸田", 18: "徳山", 24: "大村"}
 SYN_MIN = 5.0     # 合成オッズ（どれが当たっても戻る最低倍率）の下限
 SYN_MAX = 12.0    # 同 上限
 UNIT = 100        # 1口の金額
-MAX_UNITS = 5     # 1レースの上限 500円 = 5口
+MIN_UNITS = 5     # 1レースの下限 500円 = 5口
+MAX_UNITS = 10    # 1レースの上限 1,000円 = 10口
 HITP_MIN = 0.18   # 的中確率がこれ以上なら「買う」
 SKIP_EV = 0.8     # （表示用）個別の買い目の期待値がこれ未満なら「期待値低め」
 _FIRST = np.array([p[0] for p in PERMS])
@@ -42,11 +44,16 @@ def axis_pick(prob: np.ndarray, odds: np.ndarray, live: bool = False) -> dict:
         for k in range(1, MAX_UNITS + 1):
             sel = idx[:k]
             o = np.maximum(odds[sel], 1.0)
-            u = allocate(o)
-            syn = float((u * o).min() / u.sum())
             hp = float(prob[sel].sum())
-            if SYN_MIN <= syn <= SYN_MAX and (best is None or hp > best[2] + 1e-12):
-                best = (a, k, hp, syn, sel, u)
+            if best is not None and hp < best[2] - 1e-12:
+                continue
+            for U in range(max(MIN_UNITS, k), MAX_UNITS + 1):
+                u = allocate(o, U)
+                syn = float((u * o).min() / U)
+                if SYN_MIN <= syn <= SYN_MAX:
+                    if best is None or hp > best[2] + 1e-12 or (abs(hp - best[2]) <= 1e-12 and U < int(best[5].sum())):
+                        best = (a, k, hp, syn, sel, u)
+                    break
     if best is None:
         return {"axis": None, "picks": [], "n": 0, "syn": None, "hitp": 0.0, "ev": 0.0, "buy": False, "stake": 0}
     a, k, hp, syn, sel, u = best

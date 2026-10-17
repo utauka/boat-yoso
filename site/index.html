@@ -185,7 +185,7 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   <section id="p-today" class="stack" role="tabpanel">
     <div>
       <h2 id="today-h">今日の買いレース</h2>
-      <p class="lede"><b>戸田・徳山・大村</b>の全レースをAIが調べ、1艇を1着に固定した3連単の流しを作ります。2着・3着は当たる確率が高い順に足していきます。<b>1レース500円まで</b>（100円×5口、最大5点）で、払戻ができるだけそろうように配分し、<b>合成オッズ</b>（どれが当たっても戻る最低倍率）<b>が5〜12倍</b>に収まる中で的中確率が一番高い買い方を選びます。<b>展示が出てから</b>判断し、的中確率が<b id="today-th">18%</b>以上なら「買い」、それ以外は見送りです。</p>
+      <p class="lede"><b>戸田・徳山・大村</b>の全レースをAIが調べ、1艇を1着に固定した3連単の流しを作ります。2着・3着は当たる確率が高い順に足していきます。<b>1レース500〜1,000円</b>（100円×5〜10口、最大10点）で、払戻ができるだけそろうように配分し、<b>合成オッズ</b>（どれが当たっても戻る最低倍率）<b>が5〜12倍</b>に収まる中で的中確率が一番高い買い方を選びます（同じ的中確率なら安い方）。<b>展示が出てから</b>判断し、的中確率が<b id="today-th">18%</b>以上なら「買い」、それ以外は見送りです。</p>
     </div>
     <div class="panel stack" style="gap:10px">
       <div class="row">
@@ -467,7 +467,7 @@ function renderRacer(num){
 function renderPerf(){
   if(!BT||!BT.buy||BT.hitp_min==null){$("#perf-lede").textContent="検証データがありません。";return}
   const b=BT.buy,e=BT.every;
-  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の戸田・徳山・大村 ${yen(BT.test_races)}レース（展示データがあるもの）で試した結果です。1艇軸の3連単流し・1レース500円まで（最大5点）・合成オッズ5〜12倍の買い方で、的中確率${TH()}%以上の「買い」レースだけを配分どおりに買ったと仮定しています。過去の本物のオッズは手に入らないため、合成オッズは推定オッズで計算しています。`;
+  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の戸田・徳山・大村 ${yen(BT.test_races)}レース（展示データがあるもの）で試した結果です。1艇軸の3連単流し・1レース500〜1,000円（最大10点）・合成オッズ5〜12倍の買い方で、的中確率${TH()}%以上の「買い」レースだけを配分どおりに買ったと仮定しています。過去の本物のオッズは手に入らないため、合成オッズは推定オッズで計算しています。`;
   $("#perf-kpi").innerHTML=`<div class="panel stack" style="gap:8px"><span class="label">買いレースだけ（的中確率${TH()}%以上）</span>
     <div class="grid3" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><span>的中率</span><b>${b.hit_rate}%</b></div><div class="stat"><span>回収率</span><b>${b.roi}%</b></div><div class="stat"><span>1日あたり</span><b>${BT.buy_per_day}<small style="font-size:12px">R</small></b></div></div>
     <span class="note">${yen(b.races)}レースで${yen(b.hits)}回的中。平均${b.n}点・合成オッズ平均${b.syn}倍。</span></div>
