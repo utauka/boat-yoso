@@ -19,10 +19,10 @@ import pandas as pd
 from common import MODELS, SITE_DATA, STADIUMS, payout_class, read_store, write_json
 from features import (COMBO_INDEX, FEATURES, ODDS_FEATS, PERMS, build_frame, combo_frame, combo_name,
                       trifecta_probs)
-from strategy import CONF_MIN, pick3
+from strategy import HITP_MIN, SYN_MAX, SYN_MIN, TARGET_STADIUMS, axis_pick, return_per_100
 
 PARAMS = dict(objective="binary", learning_rate=0.04, num_leaves=31, min_data_in_leaf=60,
-              feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1)
+              feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1, seed=42)
 ODDS_PARAMS = dict(objective="regression", learning_rate=0.04, num_leaves=63, min_data_in_leaf=40,
                    feature_fraction=0.9, verbose=-1)
 ROUNDS = 500
@@ -113,47 +113,52 @@ def main():
     cls_ok = np.mean([payout_class(a * 100) == payout_class(e * 100) for a, e in zip(ao, eo)])
     print(f"推定オッズと実際の払戻の相関 {corr:.2f}／本命・中穴・大穴の区分一致 {cls_ok:.1%}")
 
-    # ---- 3) 3点買い（本命＋中穴）と「買う／見送り」判断のバックテスト（1レース 100円×3点＝300円）
+    # ---- 3) 1艇軸の3連単流し（合成オッズ5〜12倍）と「買う／見送り」判断のバックテスト（対象3場・1レース100円換算）
     rows = []
     stad = te["j"].astype(int).to_numpy()[::6]
     dates = te["d"].to_numpy()[::6]
+    hasex = ~np.isnan(te["et"].to_numpy(dtype=float).reshape(-1, 6)).any(1)
     for n in range(len(te_keys)):
-        if not valid[n]:
+        if not valid[n] or int(stad[n]) not in TARGET_STADIUMS or not hasex[n]:
             continue
-        pk = pick3(P[n], O[n])
+        pk = axis_pick(P[n], O[n])
+        if not pk["picks"]:
+            rows.append({"j": int(stad[n]), "d": dates[n], "ev": 0.0, "hitp": 0.0, "buy": False, "hit": False,
+                         "ret": 0.0, "n": 0, "syn": np.nan, "has": False})
+            continue
         win = combo_name(int(wc[n]))
-        cs = [c["combo"] for c in pk["picks"]]
-        hit = win in cs
-        rows.append({"j": int(stad[n]), "d": dates[n], "conf": pk["conf"], "buy": pk["buy"], "hit": hit,
-                     "ret": int(wp[n]) if hit else 0, "cost": 100 * len(cs)})
+        r = return_per_100(pk, win, int(wp[n]))
+        rows.append({"j": int(stad[n]), "d": dates[n], "ev": pk["ev"], "hitp": pk["hitp"], "buy": pk["buy"],
+                     "hit": r > 0, "ret": r, "n": pk["n"], "syn": pk["syn"], "has": True})
     bt = pd.DataFrame(rows)
+    has = bt[bt["has"]]
     buy = bt[bt["buy"]]
     days = bt["d"].nunique()
 
     def summary(sub):
         if len(sub) == 0:
-            return {"races": 0, "hits": 0, "hit_rate": 0, "roi": 0, "avg_ret": 0, "conf": 0}
+            return {"races": 0, "hits": 0, "hit_rate": 0, "roi": 0, "hitp": 0, "n": 0, "syn": 0}
         return {"races": int(len(sub)), "hits": int(sub["hit"].sum()), "hit_rate": round(sub["hit"].mean() * 100, 1),
-                "roi": round(sub["ret"].sum() / max(sub["cost"].sum(), 1) * 100, 1),
-                "avg_ret": int(sub.loc[sub["hit"], "ret"].mean()) if sub["hit"].any() else 0,
-                "conf": round(sub["conf"].mean() * 100, 1)}
+                "roi": round(sub["ret"].mean(), 1), "hitp": round(sub["hitp"].mean() * 100, 1),
+                "n": round(float(sub["n"].mean()), 1), "syn": round(float(sub["syn"].mean()), 1)}
 
-    bands = [(0, .15), (.15, .20), (.20, .25), (.25, .30), (.30, 1.0)]
+    bands = [(0, .12), (.12, .15), (.15, .18), (.18, .21), (.21, 1.0)]
     report = {"generated": dt.datetime.now().isoformat(timespec="minutes"), "train_to": cut, "test_from": cut,
-              "test_to": last, "test_races": int(valid.sum()), "conf_min": CONF_MIN, "days": int(days),
+              "test_to": last, "test_races": int(len(bt)), "hitp_min": HITP_MIN, "syn": [SYN_MIN, SYN_MAX], "days": int(days),
+              "stadiums": {str(k): v for k, v in TARGET_STADIUMS.items()},
               "buy_per_day": round(len(buy) / max(days, 1), 1),
               "model": {"win_hit": round(hit1 * 100, 1), "tri_top1": round(top1 * 100, 1), "logloss": round(ll, 3),
                         "odds_corr": round(corr, 2), "odds_class_match": round(cls_ok * 100, 1), "odds_correction": round(correction, 3)},
-              "buy": summary(buy), "every": summary(bt),
-              "bands": [{"lo": lo, "hi": hi, **summary(bt[(bt["conf"] >= lo) & (bt["conf"] < hi)])} for lo, hi in bands],
-              "by_stadium": {str(j): summary(buy[buy["j"] == j]) for j in STADIUMS},
+              "buy": summary(buy), "every": summary(has),
+              "bands": [{"lo": lo, "hi": hi, **summary(has[(has["hitp"] >= lo) & (has["hitp"] < hi)])} for lo, hi in bands],
+              "by_stadium": {str(j): summary(buy[buy["j"] == j]) for j in TARGET_STADIUMS},
               "monthly": {m: summary(buy[buy["d"].str[:7] == m]) for m in sorted(bt["d"].str[:7].unique())}}
     report["odds_correction"] = round(correction, 3)
     print(f"推定オッズの補正係数 {correction:.3f}")
     print("買う", report["buy"], "／1日", report["buy_per_day"], "R")
     print("全レース", report["every"])
     for x in report["bands"]:
-        print(f'  自信{x["lo"]:.0%}〜{x["hi"]:.0%}: {x["races"]}R 予測{x["conf"]}% 実際{x["hit_rate"]}% 回収{x["roi"]}%')
+        print(f'  的中確率{x["lo"]:.0%}〜{x["hi"]:.0%}: {x["races"]}R 予測{x["hitp"]}% 実際{x["hit_rate"]}% 回収{x["roi"]}%')
 
     # ---- 本番用：全期間で学習し直して保存
     print("全期間で学習し直して保存…")

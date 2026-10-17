@@ -112,6 +112,14 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .conf .cv{font:700 26px var(--f-num);line-height:1}.conf .cv small{font-size:13px}
 .conf .meter{position:relative}
 .conf .meter b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.5}
+.axis{border-top:1px solid var(--soft);padding:10px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.axis div{display:flex;flex-direction:column;gap:2px}.axis span{font-size:11.5px;color:var(--sub);font-weight:700;letter-spacing:.04em}
+.axis b{font:700 20px var(--f-num);display:flex;align-items:center;gap:6px}.axis b small{font-size:12px}
+.budget{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.budget input{width:7em;font:700 16px var(--f-num)}
+.waitlist{display:flex;flex-wrap:wrap;gap:6px}
+.waitlist span{font:500 12.5px var(--f-num);border:1px dashed var(--line);border-radius:6px;padding:3px 8px;color:var(--sub)}
+.selfgood{color:var(--hit);font-weight:700}.selfbad{color:var(--oana)}
 .buy{font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;color:#fff;background:var(--hit)}
 .skipline{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:13px;color:var(--sub)}
 .diag{border-top:1px solid var(--soft);padding:10px 14px;display:flex;flex-direction:column;gap:8px}
@@ -177,7 +185,7 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   <section id="p-today" class="stack" role="tabpanel">
     <div>
       <h2 id="today-h">今日の買いレース</h2>
-      <p class="lede">対象6場の全レースをAIが調べ、<b>本命</b>（5〜20倍）と<b>中穴</b>（21〜60倍）を組み合わせた3連単3点を作ります（本命2＋中穴1か、本命1＋中穴2）。3点の当たる確率の合計を「的中の自信」とし、<b id="today-th">25%</b>以上のレースだけを「買う」として表示します。それ以外は見送りです。</p>
+      <p class="lede"><b>戸田・徳山・大村</b>の全レースをAIが調べ、1艇を1着に固定した3連単の流しを作ります。2着・3着は当たる確率が高い順に足していき、<b>合成オッズ5〜12倍</b>に収まる中で的中確率が一番高い買い方を選びます（点数は自由）。<b>展示が出てから</b>判断し、的中確率が<b id="today-th">18%</b>以上なら「買い」、それ以外は見送りです。</p>
     </div>
     <div class="panel stack" style="gap:10px">
       <div class="row">
@@ -186,8 +194,10 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
         <button class="chip" id="today-clear" type="button">全レース</button>
       </div>
       <div class="row" id="today-st"></div>
+      <div class="budget"><label for="budget" class="label">1レースの予算</label><input type="text" id="budget" inputmode="numeric" value="1000"><span class="note">円。どれが当たっても払戻がほぼ同じになるよう100円単位で配分します。</span></div>
     </div>
     <div class="grid3" id="today-sum"></div>
+    <div class="panel stack" style="gap:8px" id="wait-panel" hidden><h3>展示待ちのレース</h3><div class="waitlist" id="wait-list"></div><p class="note">展示が出ると10分ごとの更新で判断します。</p></div>
     <div class="grid2" id="today-list"></div>
     <p class="note" id="today-note"></p>
   </section>
@@ -200,7 +210,7 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
     </div>
     <div class="panel stack" style="gap:12px">
       <div class="row" style="justify-content:space-between">
-        <h3>6場の比較</h3>
+        <h3>3場の比較</h3>
         <div class="row"><label class="label" for="deme-period">期間</label>
           <select id="deme-period"><option value="730">直近2年</option><option value="365">直近1年</option><option value="182">直近6か月</option><option value="91">直近3か月</option><option value="30">直近30日</option></select></div>
       </div>
@@ -231,7 +241,7 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   <section id="p-racer" class="stack" role="tabpanel" hidden>
     <div>
       <h2>選手検索</h2>
-      <p class="lede">4桁の登録番号を入れると、その選手の最新の成績、コース別の成績（直近1年・全国）、6場での成績（直近2年）、直近10走を表示します。</p>
+      <p class="lede">4桁の登録番号を入れると、その選手の最新の成績、コース別の成績（直近1年・全国）、戸田・徳山・大村での成績（直近2年）、直近10走を表示します。</p>
     </div>
     <div class="panel row">
       <label for="racer-num" class="label">登録番号</label>
@@ -248,9 +258,9 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
       <p class="lede" id="perf-lede"></p>
     </div>
     <div class="grid2" id="perf-kpi"></div>
-    <div class="panel stack" style="gap:10px"><h3>「的中の自信」と実際の的中率</h3><div class="tbl"><table id="perf-band"></table></div><p class="note">AIの言う「自信」と、実際に当たった割合がほぼ一致しているかを確かめる表です。色のついた行が「買う」レースです。</p></div>
-    <div class="panel stack" style="gap:10px"><h3>場ごとの成績（買うレース）</h3><div class="tbl"><table id="perf-st"></table></div></div>
-    <div class="panel stack" style="gap:10px"><h3>月ごとの成績（買うレース）</h3><div class="tbl"><table id="perf-m"></table></div></div>
+    <div class="panel stack" style="gap:10px"><h3>「的中確率」と実際の的中率</h3><div class="tbl"><table id="perf-band"></table></div><p class="note">AIの出した的中確率と、実際に当たった割合がほぼ一致しているかを確かめる表です。色のついた行が「買い」のレースです。</p></div>
+    <div class="panel stack" style="gap:10px"><h3>場ごとの成績（買いレース）</h3><div class="tbl"><table id="perf-st"></table></div></div>
+    <div class="panel stack" style="gap:10px"><h3>月ごとの成績（買いレース）</h3><div class="tbl"><table id="perf-m"></table></div></div>
     <div class="grid2">
       <div class="panel stack" style="gap:10px"><h3>AIが重視している材料（1着予想）</h3><div class="coursebars" id="perf-imp" style="grid-template-columns:9em 1fr 3.5em"></div></div>
       <div class="panel stack" style="gap:8px"><h3>この数字の読み方</h3><div class="note" id="perf-read"></div></div>
@@ -264,7 +274,7 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 (function(){
 "use strict";
 const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const ST={2:"戸田",12:"住之江",18:"徳山",19:"下関",22:"福岡",24:"大村"}, ORDER=[19,24,18,22,12,2];
+const ST={2:"戸田",12:"住之江",18:"徳山",19:"下関",22:"福岡",24:"大村"}, ORDER=[2,18,24];
 const CLSJ={honmei:"本命",chuana:"中穴",oana:"大穴"};
 const cls=p=>!p?null:(p<=2000?"honmei":p<=6000?"chuana":"oana");
 const yen=n=>n==null?"-":Number(n).toLocaleString("ja-JP");
@@ -296,68 +306,79 @@ function initTabs(){
 }
 
 /* ---------- 今日の買いレース ---------- */
-const KJ={honmei:"本命",chuana:"中穴",oana:"大穴"};
 let todaySt="all";
-const TH=()=>Math.round(((PR&&PR.conf_min)||(BT&&BT.conf_min)||0.25)*100);
+const TH=()=>Math.round(((PR&&PR.hitp_min)||(BT&&BT.hitp_min)||0.18)*100);
+const budget=()=>{const v=parseInt(($("#budget").value||"").replace(/\D/g,""),10);return isFinite(v)&&v>=100?v:1000};
+function alloc(picks,B){
+  // 100円単位・各100円以上で、オッズの逆数に比例して配分
+  const n=picks.length, units=Math.max(n,Math.floor(B/100));
+  const inv=picks.map(c=>1/Math.max(c.odds,1)), tot=inv.reduce((a,b)=>a+b,0);
+  let u=inv.map(x=>Math.max(1,Math.floor(x/tot*units)));
+  let left=units-u.reduce((a,b)=>a+b,0);
+  while(left>0){let k=0,low=1e9;picks.forEach((c,i)=>{const pay=u[i]*c.odds;if(pay<low){low=pay;k=i}});u[k]++;left--}
+  return u.map(x=>x*100);
+}
 function renderToday(){
   if(!PR||!PR.races){$("#today-list").innerHTML='<div class="empty panel">予想データがまだありません。</div>';return}
   const [yy,mm,dd]=PR.date.split("-").map(Number);
   $("#today-h").textContent=`${mm}月${dd}日の買いレース`;
   $("#today-th").textContent=TH()+"%";
   const num=$("#today-num").value.trim();
-  const races=PR.races.filter(z=>z.picks);
+  const races=PR.races.filter(z=>"axis" in z&&ORDER.includes(z.j));
   const byNum=num.length===4?races.filter(z=>z.boats.some(b=>String(b.num)===num)):null;
   const open=ORDER.filter(j=>races.some(z=>z.j===j));
   const buyN=j=>races.filter(z=>z.buy&&(j==null||z.j===j)).length;
-  $("#today-st").innerHTML=[`<button class="chip" data-st="all" aria-pressed="${todaySt==="all"}">開催場すべて<span class="cnt">${buyN()}</span></button>`]
+  $("#today-st").innerHTML=[`<button class="chip" data-st="all" aria-pressed="${todaySt==="all"}">3場すべて<span class="cnt">${buyN()}</span></button>`]
     .concat(open.map(j=>`<button class="chip" data-st="${j}" aria-pressed="${todaySt==j}">${ST[j]}<span class="cnt">${buyN(j)}</span></button>`)).join("")
     + (ORDER.filter(j=>!open.includes(j)).length?`<span class="note">本日休み：${ORDER.filter(j=>!open.includes(j)).map(j=>ST[j]).join("・")}</span>`:"");
   document.querySelectorAll("#today-st .chip").forEach(b=>b.onclick=()=>{todaySt=b.dataset.st;renderToday()});
   let all=byNum||races; if(todaySt!=="all") all=all.filter(z=>z.j==todaySt);
-  const list=all.filter(z=>z.buy), skipped=all.length-list.length;
+  const list=all.filter(z=>z.buy), waits=all.filter(z=>z.state==="wait"&&!z.result), skipped=all.filter(z=>z.state==="skip").length;
   const done=list.filter(z=>z.result), hits=done.filter(z=>z.hit);
-  const ret=hits.reduce((s,z)=>s+z.result.pay,0), cost=done.length*300;
+  const ret=done.reduce((s,z)=>s+(z.ret100||0),0), cost=done.length*100;
   const live=list.filter(z=>z.odds_source==="live").length;
   $("#today-sum").innerHTML=[
-    ["買うレース",`${list.length}R`,`見送り ${skipped}R（全${all.length}R中）`],
-    ["的中",`${hits.length}/${done.length}`,`払戻 ${yen(ret)}円（投資 ${yen(cost)}円）`],
-    ["今日の回収率",cost?`${(ret/cost*100).toFixed(0)}%`:"-","結果が出た買うレースで計算"],
+    ["買いレース",`${list.length}R`,`見送り ${skipped}R・展示待ち ${waits.length}R`],
+    ["的中",`${hits.length}/${done.length}`,"結果が出た買いレース"],
+    ["今日の回収率",cost?`${(ret/cost*100).toFixed(0)}%`:"-","配分どおりに買った場合"],
     ["実オッズで判定",`${live}R`,live?"締切前に公式オッズを取得":"推定オッズで判定"]
   ].map(([a,b,c])=>`<div class="panel stat"><span class="label">${a}</span><b>${b}</b><span>${c}</span></div>`).join("");
+  $("#wait-panel").hidden=!waits.length;
+  $("#wait-list").innerHTML=waits.map(z=>`<span>${ST[z.j]} ${z.r}R ${z.ca?z.ca.slice(11,16):""}</span>`).join("");
   if(num.length===4&&!byNum.length){
     const r=RC&&RC.racers[num], rec=r&&r.recent&&r.recent[0];
-    $("#today-list").innerHTML=`<div class="empty panel">${r?esc(r.name)+"（"+num+"）は":"登録番号 "+num+" の選手は"}本日の対象6場に出走がありません。${rec?`<br>最近の出走：${rec[0]} ${esc(RC.stadium_names[rec[1]])} ${rec[2]}R`:""}</div>`;
+    $("#today-list").innerHTML=`<div class="empty panel">${r?esc(r.name)+"（"+num+"）は":"登録番号 "+num+" の選手は"}本日の戸田・徳山・大村に出走がありません。${rec?`<br>最近の出走：${rec[0]} ${esc(RC.stadium_names[rec[1]])} ${rec[2]}R`:""}</div>`;
     $("#today-note").textContent="";return}
-  if(!list.length){
-    $("#today-list").innerHTML=`<div class="empty panel">${byNum?"この選手のレースは":"条件に合うレースは"}すべて見送りです（的中の自信が${TH()}%に届きません）。</div>`;
-  } else $("#today-list").innerHTML=list.map(z=>raceCard(z,num)).join("");
-  const sk=all.filter(z=>!z.buy).sort((a,b)=>b.conf-a.conf).slice(0,1)[0];
+  $("#today-list").innerHTML=list.length?list.map(z=>raceCard(z,num)).join(""):`<div class="empty panel">${waits.length?"展示が出たレースの中に、買いはまだありません。":"買いのレースはありません（的中確率が"+TH()+"%に届きません）。"}</div>`;
   const after=list.filter(z=>z.made_after_close).length;
-  $("#today-note").innerHTML=`作成 ${esc(PR.generated.replace("T"," "))}。「推定」は過去の払戻金から学習したAIの見込みで、本物のオッズとはずれます。締切25分前からは公式の実オッズで3点と自信を決め直すため、買う・見送りが入れかわることがあります。`+(sk?` 見送りの中で一番自信が高かったのは ${ST[sk.j]}${sk.r}R（${(sk.conf*100).toFixed(1)}%）でした。`:"")+(after?` 「締切後に作成」の${after}レースは、締切前の情報だけで後から作った検証用の予想です。`:"");
+  $("#today-note").innerHTML=`作成 ${esc(PR.generated.replace("T"," "))}。「推定」は過去の払戻金から学習したAIの見込みで、本物のオッズとはずれます。締切25分前からは公式の実オッズで買い方を決め直すため、点数・合成オッズ・買いか見送りかが変わることがあります。`+(after?` 「締切後に作成」の${after}レースは、締切前の情報だけで後から作った検証用の予想です。`:"");
 }
 function raceCard(z,num){
   const t=z.ca?z.ca.slice(11,16):"";
-  const rows=z.boats.map(b=>`<tr class="${num&&String(b.num)===num?"me":""}"><td>${boat(b.b)}</td><td class="nm">${esc(b.name)} <span class="num" style="color:var(--sub);font-size:11.5px">${b.num}</span></td><td>${b.cls}</td><td class="r num">${b.wr??"-"}</td><td class="r num">${b.et?b.et.toFixed(2):"-"}</td><td class="num"><span class="p1bar" style="width:${Math.max(2,b.p1*0.7)}px"></span>${b.p1.toFixed(0)}%</td></tr>`).join("");
+  const sf=i=>{const v=(z.exs&&z.exs[i]&&z.exs[i].self);return v==null?"-":`<span class="${v<=-0.05?"selfgood":v>=0.05?"selfbad":""}">${v>0?"+":""}${v.toFixed(2)}</span>`};
+  const rows=z.boats.map((b,i)=>`<tr class="${num&&String(b.num)===num?"me":""}"><td>${boat(b.b)}</td><td class="nm">${esc(b.name)} <span class="num" style="color:var(--sub);font-size:11.5px">${b.num}</span></td><td>${b.cls}</td><td class="r num">${b.wr??"-"}</td><td class="r num">${b.et?b.et.toFixed(2):"-"}</td><td class="r num">${sf(i)}</td><td class="r num">${b.exst!=null?b.exst.toFixed(2):"-"}</td><td class="num"><span class="p1bar" style="width:${Math.max(2,b.p1*0.6)}px"></span>${b.p1.toFixed(0)}%</td></tr>`).join("");
   const src=z.odds_source==="live"?"実オッズ":"推定倍率";
+  const B=budget(), st=alloc(z.picks,B), tot=st.reduce((a,b)=>a+b,0);
   const won=c=>z.result&&c.combo===z.result.combo;
-  const sel=`<div class="sel tbl"><table><thead><tr><th>区分</th><th>組番</th><th class="r">${src}</th><th class="r">確率</th><th class="r ev">期待値</th></tr></thead><tbody>${z.picks.map(c=>`<tr class="${won(c)?"won":""}"><td><span class="kb ${c.kind}">${KJ[c.kind]||"-"}</span></td><td>${combo(c.combo)}${won(c)?' <span class="tag hit">的中</span>':""}${c.low?' <span class="tag">期待値低め</span>':""}</td>
-    <td class="r num">${c.odds.toFixed(1)}</td><td class="r num">${(c.p*100).toFixed(1)}%</td><td class="r num ev">${c.ev.toFixed(2)}</td></tr>`).join("")}</tbody></table></div>`;
-  const cv=z.conf*100;
-  const conf=`<div class="conf"><span class="label">的中の自信</span><span class="cv">${cv.toFixed(1)}<small>%</small></span><span class="buy">買い</span><span class="meter" aria-hidden="true"><i style="width:${Math.min(100,cv/40*100)}%"></i><b style="left:${TH()/40*100}%"></b></span></div>`;
+  const tk=z.picks.map((c,i)=>`<tr class="${won(c)?"won":""}"><td>${combo(c.combo)}${won(c)?' <span class="tag hit">的中</span>':""}</td><td class="r num">${c.odds.toFixed(1)}</td><td class="r num">${(c.p*100).toFixed(1)}%</td><td class="r num">${yen(st[i])}円</td><td class="r num">${yen(Math.round(st[i]*c.odds/10)*10)}円</td></tr>`).join("");
+  const axis=`<div class="axis"><div><span>軸（1着固定）</span><b>${boat(z.axis)}</b></div><div><span>点数</span><b>${z.n}<small>点</small></b></div><div><span>合成オッズ</span><b>${z.syn.toFixed(1)}<small>倍</small></b></div><div><span>的中確率</span><b>${(z.hitp*100).toFixed(1)}<small>%</small></b></div><div><span>期待値（参考）</span><b>${z.ev.toFixed(2)}</b></div></div>`;
+  const tbl=`<div class="sel tbl"><table><thead><tr><th>組番</th><th class="r">${src}</th><th class="r">確率</th><th class="r">金額</th><th class="r">当たれば</th></tr></thead><tbody>${tk}</tbody><tfoot><tr><td class="note">合計</td><td></td><td class="r num">${(z.hitp*100).toFixed(1)}%</td><td class="r num">${yen(tot)}円</td><td></td></tr></tfoot></table>${(()=>{const pays=z.picks.map((c,i)=>st[i]*c.odds),lo=Math.min(...pays),hi=Math.max(...pays);if(hi<=lo*1.3)return "";const need=Math.ceil(100*Math.max(...z.picks.map(c=>c.odds))/z.syn/100)*100;return `<p class="note" style="padding:4px 8px 6px;margin:0">この予算では払戻がそろいません（${yen(Math.round(lo/10)*10)}〜${yen(Math.round(hi/10)*10)}円）。そろえるには約${yen(need)}円が必要です。</p>`})()}</div>`;
   const hit=z.result?(z.hit?'<span class="tag hit">的中</span>':'<span class="tag">不的中</span>'):"";
-  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span>${hit}</div>`:"";
-  return `<article class="race"><div class="race-h"><span class="rn">${z.r}R</span><span class="st">${ST[z.j]}</span>
-    ${z.odds_source==="live"?'<span class="tag live">実オッズ</span>':""}${z.made_after_close?'<span class="tag">締切後に作成</span>':""}${!z.has_preview?'<span class="tag">展示前</span>':""}
+  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span>${hit}${z.hit?`<span class="note">100円あたり ${yen(Math.round(z.ret100))}円の払戻</span>`:""}</div>`:"";
+  return `<article class="race"><div class="race-h"><span class="rn">${z.r}R</span><span class="st">${ST[z.j]}</span><span class="buy">買い</span>
+    ${z.odds_source==="live"?'<span class="tag live">実オッズ</span>':""}${z.made_after_close?'<span class="tag">締切後に作成</span>':""}
     <span class="time">締切 ${t}</span><span class="tt">${esc(z.title||"")} ${esc(z.sub||"")}</span></div>
-    <div class="tbl"><table class="entries"><thead><tr><th>枠</th><th>選手</th><th>級</th><th class="r">勝率</th><th class="r">展示</th><th>1着率</th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${conf}${sel}${res}
+    <div class="tbl"><table class="entries"><thead><tr><th>枠</th><th>選手</th><th>級</th><th class="r">勝率</th><th class="r">展示</th><th class="r">ふだん比</th><th class="r">展示ST</th><th>1着率</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${axis}${tbl}${res}
     <div class="why"><ul>${(z.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div></article>`;
 }
 $("#today-num").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"");if(!e.target.value||e.target.value.length===4)renderToday()});
 $("#today-clear").addEventListener("click",()=>{$("#today-num").value="";todaySt="all";renderToday()});
+$("#budget").addEventListener("change",e=>{const v=budget();e.target.value=v;store.set("budget",v);renderToday()});
+{const v=store.get("budget");if(v)$("#budget").value=v;}
 
 /* ---------- 出目履歴 ---------- */
-let demeSt=19, histLimit=40;
+let demeSt=2, histLimit=40;
 function windowRows(j){
   const days=+$("#deme-period").value, end=new Date(S.to+"T00:00:00Z"); end.setUTCDate(end.getUTCDate()-days+1);
   const from=end.toISOString().slice(0,10);
@@ -438,12 +459,12 @@ function renderRacer(num){
     <div class="row" style="gap:6px 14px;align-items:baseline"><h2>${esc(r.name)}</h2><span class="num" style="color:var(--sub)">${num}</span><span class="cls ${r.cls==="A1"?"oana":r.cls==="A2"?"chuana":"honmei"}">${r.cls}</span><span class="note">${esc(r.br)}支部 ・ ${r.age??"-"}歳 ・ ${r.wt??"-"}kg ・ 出走表 ${r.asof} 時点</span></div>
     <div class="grid3">${[["勝率",r.wr],["2連対率",r.t2!=null?r.t2+"%":"-"],["3連対率",r.t3!=null?r.t3+"%":"-"],["平均ST",r.ast!=null?r.ast.toFixed(2):"-"],["フライング",`F${r.f??0}`],["出遅れ",`L${r.l??0}`]].map(([a,b])=>`<div class="stat"><span class="label">${a}</span><b>${b??"-"}</b></div>`).join("")}</div>
   </div>
-  ${today.length?`<div class="panel stack" style="gap:8px"><h3>本日の出走（対象6場）</h3><div class="row">${today.map(z=>`<button class="chip" type="button" data-go="${num}">${ST[z.j]} ${z.r}R ${z.ca?z.ca.slice(11,16):""}</button>`).join("")}</div><p class="note">押すと「今日の買いレース」でこの選手のレースだけを表示します。</p></div>`:""}
+  ${today.length?`<div class="panel stack" style="gap:8px"><h3>本日の出走（戸田・徳山・大村）</h3><div class="row">${today.map(z=>`<button class="chip" type="button" data-go="${num}">${ST[z.j]} ${z.r}R ${z.ca?z.ca.slice(11,16):""}</button>`).join("")}</div><p class="note">押すと「今日の買いレース」でこの選手のレースだけを表示します。</p></div>`:""}
   <div class="grid2">
     <div class="panel stack" style="gap:10px"><h3>コース別の1着率（直近1年・全国）</h3>
       <div class="coursebars">${cr.map(x=>`<span>${boat(x.c)}</span><span class="track"><i style="width:${x.w/mx*100}%"></i></span><span class="num" style="text-align:right">${x.n?x.w.toFixed(1)+"%":"-"}</span>`).join("")}</div>
       <div class="tbl"><table><thead><tr><th>コース</th><th class="r">出走</th><th class="r">1着率</th><th class="r">2連対</th><th class="r">3連対</th><th class="r">平均ST</th></tr></thead><tbody>${cr.map(x=>`<tr><td>${boat(x.c)}</td><td class="r num">${x.n}</td><td class="r num">${x.n?x.w.toFixed(1)+"%":"-"}</td><td class="r num">${x.n?x.t2.toFixed(1)+"%":"-"}</td><td class="r num">${x.n?x.t3.toFixed(1)+"%":"-"}</td><td class="r num">${x.st!=null?x.st.toFixed(2):"-"}</td></tr>`).join("")}</tbody></table></div></div>
-    <div class="panel stack" style="gap:10px"><h3>6場での成績（直近2年）</h3>
+    <div class="panel stack" style="gap:10px"><h3>3場での成績（直近2年）</h3>
       <div class="tbl"><table><thead><tr><th>場</th><th class="r">出走</th><th class="r">1着率</th><th class="r">2連対</th><th class="r">3連対</th></tr></thead><tbody>${local}</tbody></table></div></div>
   </div>
   ${r.style?(()=>{const t=r.style,P=(a,n)=>n?(a/n*100).toFixed(1)+"%":"-";return `<div class="panel stack" style="gap:10px"><h3>決まり手の傾向（直近1年・全国）</h3>
@@ -457,31 +478,31 @@ function renderRacer(num){
 
 /* ---------- 成績 ---------- */
 function renderPerf(){
-  if(!BT||!BT.buy){$("#perf-lede").textContent="検証データがありません。";return}
+  if(!BT||!BT.buy||BT.hitp_min==null){$("#perf-lede").textContent="検証データがありません。";return}
   const b=BT.buy,e=BT.every;
-  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の ${yen(BT.test_races)}レースで試した結果です。的中の自信が${TH()}%以上の「買う」レースだけを、3点×100円（1レース300円）で買ったと仮定しています。過去の本物のオッズは手に入らないため、本命・中穴の区分は推定オッズで決めています。`;
-  $("#perf-kpi").innerHTML=`<div class="panel stack" style="gap:8px"><span class="label">買うレースだけ（自信${TH()}%以上）</span>
+  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の戸田・徳山・大村 ${yen(BT.test_races)}レース（展示データがあるもの）で試した結果です。1艇軸の3連単流し・合成オッズ5〜12倍の買い方で、的中確率${TH()}%以上の「買い」レースだけを、配分どおりに買ったと仮定しています。過去の本物のオッズは手に入らないため、合成オッズは推定オッズで計算しています。`;
+  $("#perf-kpi").innerHTML=`<div class="panel stack" style="gap:8px"><span class="label">買いレースだけ（的中確率${TH()}%以上）</span>
     <div class="grid3" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><span>的中率</span><b>${b.hit_rate}%</b></div><div class="stat"><span>回収率</span><b>${b.roi}%</b></div><div class="stat"><span>1日あたり</span><b>${BT.buy_per_day}<small style="font-size:12px">R</small></b></div></div>
-    <span class="note">${yen(b.races)}レースで${yen(b.hits)}回的中。当たった時の平均払戻 ${yen(b.avg_ret)}円。</span></div>
+    <span class="note">${yen(b.races)}レースで${yen(b.hits)}回的中。平均${b.n}点・合成オッズ平均${b.syn}倍。</span></div>
     <div class="panel stack" style="gap:8px"><span class="label">見送りも含めて全レースを買った場合</span>
     <div class="grid3" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><span>的中率</span><b>${e.hit_rate}%</b></div><div class="stat"><span>回収率</span><b>${e.roi}%</b></div><div class="stat"><span>1日あたり</span><b>${(e.races/BT.days).toFixed(1)}<small style="font-size:12px">R</small></b></div></div>
-    <span class="note">見送りの判断で、的中率は${(b.hit_rate-e.hit_rate).toFixed(1)}ポイント上がっています。</span></div>`;
-  $("#perf-band").innerHTML=`<thead><tr><th>的中の自信</th><th class="r">レース数</th><th class="r">自信の平均</th><th class="r">実際の的中率</th><th class="r">回収率</th></tr></thead><tbody>`+
-    BT.bands.map(x=>`<tr style="${x.lo>=BT.conf_min?"background:color-mix(in srgb,var(--hit) 12%,transparent)":""}"><td>${Math.round(x.lo*100)}%〜${x.hi>=1?"":Math.round(x.hi*100)+"%"}</td><td class="r num">${yen(x.races)}</td><td class="r num">${x.conf}%</td><td class="r num">${x.hit_rate}%</td><td class="r num">${x.roi}%</td></tr>`).join("")+"</tbody>";
+    <span class="note">平均${e.n}点・合成オッズ平均${e.syn}倍。</span></div>`;
+  $("#perf-band").innerHTML=`<thead><tr><th>的中確率</th><th class="r">レース数</th><th class="r">予測の平均</th><th class="r">実際の的中率</th><th class="r">回収率</th></tr></thead><tbody>`+
+    BT.bands.map(x=>`<tr style="${x.lo>=BT.hitp_min?"background:color-mix(in srgb,var(--hit) 12%,transparent)":""}"><td>${Math.round(x.lo*100)}%〜${x.hi>=1?"":Math.round(x.hi*100)+"%"}</td><td class="r num">${yen(x.races)}</td><td class="r num">${x.hitp}%</td><td class="r num">${x.hit_rate}%</td><td class="r num">${x.roi}%</td></tr>`).join("")+"</tbody>";
   $("#perf-st").innerHTML=`<thead><tr><th>場</th><th class="r">レース数</th><th class="r">的中率</th><th class="r">回収率</th></tr></thead><tbody>`+
     ORDER.map(j=>{const x=BT.by_stadium[j];return `<tr><td>${ST[j]}</td><td class="r num">${x.races}</td><td class="r num">${x.hit_rate}%</td><td class="r num" style="color:${x.roi>=100?"var(--hit)":"inherit"}">${x.roi}%</td></tr>`}).join("")+"</tbody>";
   $("#perf-m").innerHTML=`<thead><tr><th>月</th><th class="r">レース数</th><th class="r">的中率</th><th class="r">回収率</th></tr></thead><tbody>`+
     Object.entries(BT.monthly).map(([m,x])=>`<tr><td class="num">${m}</td><td class="r num">${x.races}</td><td class="r num">${x.hit_rate}%</td><td class="r num" style="color:${x.roi>=100?"var(--hit)":"inherit"}">${x.roi}%</td></tr>`).join("")+"</tbody>";
-  const NAMES={c:"進入コース",b:"枠番",nwr:"全国勝率",nwr_rank:"勝率のレース内順位",nwr_diff:"勝率の平均との差",cw_rate:"そのコースでの1着率",c2_rate:"そのコースでの2連対率",inside_exst:"内側の展示ST",et:"展示タイム",et_rank:"展示タイム順位",et_diff:"展示タイム差",exst:"展示ST",exst_rank:"展示ST順位",ast:"平均ST",ast_rank:"平均ST順位",n2:"全国2連対率",n3:"全国3連対率",lwr:"当地勝率",lwr_rank:"当地勝率順位",l2:"当地2連対率",l3:"当地3連対率",m2:"モーター2連率",m3:"モーター3連率",m2_rank:"モーター順位",cls:"級別",j:"レース場",r:"レース番号",max_nwr_other:"他艇の最高勝率",a1_cnt:"A1の人数",c_move:"進入の変化",ws:"風速",wd:"風向",wv:"波高",tilt:"チルト",age:"年齢",wt:"体重",f:"フライング数",g:"グレード",c_starts:"そのコースの出走数",b2:"ボート2連率",b3:"ボート3連率",in_nwr:"インの選手の勝率",in_cls:"インの選手の級別",in_nige:"インの選手の逃げ率",in_makurare:"インのまくられ率",in_mzasare:"インのまくり差され率",in_sasare:"インの差され率",in_ast:"インの平均ST",in_exst:"インの展示ST",in_et:"インの展示タイム",in_m2:"インのモーター",exst_vs_in:"インとの展示ST差",et_vs_in:"インとの展示タイム差",out_best_exst_gap:"外の最速展示STとの差",out_max_makuri:"外のまくり率",out_max_mzashi:"外のまくり差し率",nige_rate:"逃げ率",makurare_rate:"まくられ率",mzasare_rate:"まくり差され率",sasare_rate:"差され率",makuri_rate:"まくり率",mzashi_rate:"まくり差し率",sashi_rate:"差し率",in_starts:"インの出走数",att_starts:"外からの出走数",st_in_rate:"場のイン1着率",st_wd_in_rate:"風向別のイン1着率",st_ws_in_rate:"風速別のイン1着率",parts:"部品交換",wadj:"体重調整",lwr_rank:"当地勝率順位",inside_nwr:"内側の選手の勝率"};
+  const NAMES={et_z:"展示タイムの偏差",et_self:"展示タイムのふだん比",et_self_rank:"ふだん比の順位",et_self_n:"展示履歴の数",exst_vs_ast:"展示STと平均STの差",exst_z:"展示STの偏差",et_gap2:"展示タイム2位との差",ex_both_top:"展示タイム・STとも上位",c:"進入コース",b:"枠番",nwr:"全国勝率",nwr_rank:"勝率のレース内順位",nwr_diff:"勝率の平均との差",cw_rate:"そのコースでの1着率",c2_rate:"そのコースでの2連対率",inside_exst:"内側の展示ST",et:"展示タイム",et_rank:"展示タイム順位",et_diff:"展示タイム差",exst:"展示ST",exst_rank:"展示ST順位",ast:"平均ST",ast_rank:"平均ST順位",n2:"全国2連対率",n3:"全国3連対率",lwr:"当地勝率",lwr_rank:"当地勝率順位",l2:"当地2連対率",l3:"当地3連対率",m2:"モーター2連率",m3:"モーター3連率",m2_rank:"モーター順位",cls:"級別",j:"レース場",r:"レース番号",max_nwr_other:"他艇の最高勝率",a1_cnt:"A1の人数",c_move:"進入の変化",ws:"風速",wd:"風向",wv:"波高",tilt:"チルト",age:"年齢",wt:"体重",f:"フライング数",g:"グレード",c_starts:"そのコースの出走数",b2:"ボート2連率",b3:"ボート3連率",in_nwr:"インの選手の勝率",in_cls:"インの選手の級別",in_nige:"インの選手の逃げ率",in_makurare:"インのまくられ率",in_mzasare:"インのまくり差され率",in_sasare:"インの差され率",in_ast:"インの平均ST",in_exst:"インの展示ST",in_et:"インの展示タイム",in_m2:"インのモーター",exst_vs_in:"インとの展示ST差",et_vs_in:"インとの展示タイム差",out_best_exst_gap:"外の最速展示STとの差",out_max_makuri:"外のまくり率",out_max_mzashi:"外のまくり差し率",nige_rate:"逃げ率",makurare_rate:"まくられ率",mzasare_rate:"まくり差され率",sasare_rate:"差され率",makuri_rate:"まくり率",mzashi_rate:"まくり差し率",sashi_rate:"差し率",in_starts:"インの出走数",att_starts:"外からの出走数",st_in_rate:"場のイン1着率",st_wd_in_rate:"風向別のイン1着率",st_ws_in_rate:"風速別のイン1着率",parts:"部品交換",wadj:"体重調整",lwr_rank:"当地勝率順位",inside_nwr:"内側の選手の勝率"};
   const imp=BT.importance||[], mi=imp.length?imp[0][1]:1;
   $("#perf-imp").innerHTML=imp.slice(0,10).map(([n,v])=>`<span>${NAMES[n]||n}</span><span class="track"><i style="width:${v/mi*100}%"></i></span><span class="num" style="text-align:right">${v}%</span>`).join("");
   $("#perf-read").innerHTML=`<p style="margin:0 0 6px">舟券は売上の25%が先に引かれ、残りの75%が払い戻されます。何も考えずに買い続けると、回収率は平均75%に近づきます。</p><p style="margin:0 0 6px">このAIの1着予想は${BT.model.win_hit}%当たり、3連単の一番手は${BT.model.tri_top1}%当たります（でたらめに選ぶと0.8%）。それでも回収率は100%に届いていません。</p><p style="margin:0">予想は判断の材料として使い、1日に使う金額の上限を先に決めておくのがおすすめです。舟券を買えるのは20歳からです。</p>`;
-  const rows=((LOG&&LOG.rows)||[]).filter(r=>LOG.cols&&LOG.cols[4]==="combos");
+  const rows=((LOG&&LOG.rows)||[]).filter(r=>LOG.cols&&LOG.cols[8]==="state");
   if(!rows.length){$("#perf-live").innerHTML='<p class="note">毎日の予想と結果が、ここにたまっていきます。</p>';return}
-  const ag=f=>{const x=rows.filter(f),h=x.filter(r=>r[9]).length,ret=x.reduce((s,r)=>s+(r[9]?r[8]:0),0);return [x.length,h,pct(h,x.length),pct(ret,x.length*300),x.filter(r=>!r[10]).length]};
+  const ag=f=>{const x=rows.filter(f),h=x.filter(r=>r[11]).length,ret=x.reduce((s,r)=>s+(r[12]||0),0);return [x.length,h,pct(h,x.length),pct(ret,x.length*100),x.filter(r=>!r[13]).length]};
   const line=(lab,a)=>`<tr><td>${lab}</td><td class="r num">${a[0]}</td><td class="r num">${a[1]}</td><td class="r num">${a[2].toFixed(1)}%</td><td class="r num">${a[3].toFixed(1)}%</td><td class="r num">${a[4]}</td></tr>`;
   $("#perf-live").innerHTML=`<div class="tbl"><table><thead><tr><th></th><th class="r">レース数</th><th class="r">的中</th><th class="r">的中率</th><th class="r">回収率</th><th class="r">締切前に作成</th></tr></thead><tbody>
-    ${line("買うレース",ag(r=>r[6]))}${line("見送りレース（参考）",ag(r=>!r[6]))}</tbody></table></div>
+    ${line("買いレース",ag(r=>r[8]==="buy"))}${line("見送りレース（参考）",ag(r=>r[8]==="skip"))}</tbody></table></div>
     <p class="note">${rows[0][0]} 〜 ${rows[rows.length-1][0]} の記録。</p>`;
 }
 })();

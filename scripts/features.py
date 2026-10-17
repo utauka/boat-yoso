@@ -15,6 +15,8 @@ IN_FEATS = ["nige_rate", "makurare_rate", "mzasare_rate", "sasare_rate", "in_sta
             "in_nige", "in_makurare", "in_mzasare", "in_sasare", "in_ast", "in_exst", "in_et", "in_m2", "in_nwr",
             "in_cls", "exst_vs_in", "et_vs_in", "out_best_exst_gap", "out_max_makuri", "out_max_mzashi",
             "st_in_rate", "st_wd_in_rate", "st_ws_in_rate"]
+# 展示を深く見るための材料
+EX_FEATS = ["et_z", "et_self", "et_self_rank", "et_self_n", "exst_vs_ast", "exst_z", "et_gap2", "ex_both_top"]
 FEATURES = (
     ["j", "r", "g", "dist", "b", "c", "c_move", "ws", "wd", "wv", "wt_w"]
     + BOAT_COLS
@@ -22,6 +24,7 @@ FEATURES = (
        "nwr_rank", "nwr_diff", "et_rank", "et_diff", "exst_rank", "m2_rank", "ast_rank", "lwr_rank",
        "a1_cnt", "max_nwr_other", "cw_rate", "c2_rate", "c_starts", "inside_nwr", "inside_exst"]
     + IN_FEATS
+    + EX_FEATS
 )
 CAT = ["j", "wd"]
 PERMS = list(permutations(range(6), 3))  # 120通り（0始まりの艇の位置）
@@ -102,12 +105,31 @@ class CourseHistory:
             ee += [(x["d"], ("j", x["j"]), v), (x["d"], ("wd", x["j"], w.get("wd")), v),
                    (x["d"], ("ws", x["j"], ws_bin(w.get("ws"))), v)]
         self.env = _Rolling(ee, 2, None)
+        # 選手×場ごとの展示タイムの履歴（ふだんの展示タイムとの比較用）
+        import bisect as _b
+        self._bisect = _b
+        et_hist = defaultdict(list)
+        for x in races6 or []:
+            for b in x.get("boats") or []:
+                et = (b.get("ex") or {}).get("et")
+                if b.get("num") and et:
+                    et_hist[(b["num"], x["j"])].append((x["d"], et))
+        self.et_hist = {k: (sorted(v), [d for d, _ in sorted(v)]) for k, v in et_hist.items()}
 
     def advance(self, day: str):
         self.course.advance(day); self.style.advance(day); self.env.advance(day)
 
     def get(self, num, c):
         return self.course.get((num, c))
+
+    def et_avg(self, num, j, day, last=10):
+        h = self.et_hist.get((num, j))
+        if not h:
+            return np.nan, 0
+        rows, ds = h
+        i = self._bisect.bisect_left(ds, day)
+        v = [e for _, e in rows[max(0, i - last):i]]
+        return (float(np.mean(v)), len(v)) if len(v) >= 3 else (np.nan, len(v))
 
     def style_of(self, num):
         return self.style.get(num)
@@ -164,6 +186,15 @@ def race_rows(x: dict, hist: CourseHistory | None) -> list[dict] | None:
                "st_in_rate": hist.env_rate(("j", x["j"])) if hist else np.nan,
                "st_wd_in_rate": hist.env_rate(("wd", x["j"], w.get("wd"))) if hist else np.nan,
                "st_ws_in_rate": hist.env_rate(("ws", x["j"], ws_bin(w.get("ws")))) if hist else np.nan}
+    # 展示の材料
+    et_arr = np.array(et_f, float)
+    et_sd = np.nanstd(et_arr) if np.sum(~np.isnan(et_arr)) >= 3 else np.nan
+    ex_arr = np.array(exst_f, float)
+    ex_sd = np.nanstd(ex_arr) if np.sum(~np.isnan(ex_arr)) >= 3 else np.nan
+    selfs = [hist.et_avg(b.get("num"), x["j"], x["d"]) if hist else (np.nan, 0) for b in boats]
+    et_self = [et_arr[k] - selfs[k][0] if not np.isnan(et_arr[k]) else np.nan for k in range(6)]
+    et_self_rank = _rank(et_self, True)
+    srt = np.sort(et_arr[~np.isnan(et_arr)])
     rows = []
     for i, (b, e) in enumerate(zip(boats, exs)):
         c = courses[i]
@@ -187,6 +218,12 @@ def race_rows(x: dict, hist: CourseHistory | None) -> list[dict] | None:
                "sasare_rate": srate[i]["sasare"], "in_starts": sty[i][0], "makuri_rate": srate[i]["makuri"],
                "mzashi_rate": srate[i]["mzashi"], "sashi_rate": srate[i]["sashi"], "att_starts": sty[i][5],
                "exst_vs_in": exst_f[i] - in_exst, "et_vs_in": et_f[i] - et_f[ii],
+               "et_z": (et_arr[i] - np.nanmean(et_arr)) / et_sd if et_sd and not np.isnan(et_sd) and et_sd > 0 else np.nan,
+               "et_self": et_self[i], "et_self_rank": et_self_rank[i], "et_self_n": selfs[i][1],
+               "exst_vs_ast": exst_f[i] - (b.get("ast") if b.get("ast") is not None else np.nan),
+               "exst_z": (ex_arr[i] - np.nanmean(ex_arr)) / ex_sd if ex_sd and not np.isnan(ex_sd) and ex_sd > 0 else np.nan,
+               "et_gap2": (et_arr[i] - (srt[1] if et_arr[i] == srt[0] else srt[0])) if len(srt) >= 2 and not np.isnan(et_arr[i]) else np.nan,
+               "ex_both_top": float(ranks["et"][i] <= 2 and ranks["exst"][i] <= 2) if not np.isnan(et_arr[i]) else np.nan,
                **race_in}
         res = b.get("res") or {}
         pl = res.get("pl")
