@@ -185,7 +185,7 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   <section id="p-today" class="stack" role="tabpanel">
     <div>
       <h2 id="today-h">今日の買いレース</h2>
-      <p class="lede"><b>戸田・徳山・大村</b>の全レースをAIが調べ、1艇を1着に固定した3連単の流しを作ります。2着・3着は当たる確率が高い順に足していき、<b>合成オッズ5〜12倍</b>に収まる中で的中確率が一番高い買い方を選びます（点数は自由）。<b>展示が出てから</b>判断し、的中確率が<b id="today-th">18%</b>以上なら「買い」、それ以外は見送りです。</p>
+      <p class="lede"><b>戸田・徳山・大村</b>の全レースをAIが調べ、1艇を1着に固定した3連単の流しを作ります。2着・3着は当たる確率が高い順に足していきます。<b>1レース500円まで</b>（100円×5口、最大5点）で、払戻ができるだけそろうように配分し、<b>合成オッズ</b>（どれが当たっても戻る最低倍率）<b>が5〜12倍</b>に収まる中で的中確率が一番高い買い方を選びます。<b>展示が出てから</b>判断し、的中確率が<b id="today-th">18%</b>以上なら「買い」、それ以外は見送りです。</p>
     </div>
     <div class="panel stack" style="gap:10px">
       <div class="row">
@@ -194,7 +194,6 @@ details.all tr.picked td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
         <button class="chip" id="today-clear" type="button">全レース</button>
       </div>
       <div class="row" id="today-st"></div>
-      <div class="budget"><label for="budget" class="label">1レースの予算</label><input type="text" id="budget" inputmode="numeric" value="1000"><span class="note">円。どれが当たっても払戻がほぼ同じになるよう100円単位で配分します。</span></div>
     </div>
     <div class="grid3" id="today-sum"></div>
     <div class="panel stack" style="gap:8px" id="wait-panel" hidden><h3>展示待ちのレース</h3><div class="waitlist" id="wait-list"></div><p class="note">展示が出ると10分ごとの更新で判断します。</p></div>
@@ -308,16 +307,6 @@ function initTabs(){
 /* ---------- 今日の買いレース ---------- */
 let todaySt="all";
 const TH=()=>Math.round(((PR&&PR.hitp_min)||(BT&&BT.hitp_min)||0.18)*100);
-const budget=()=>{const v=parseInt(($("#budget").value||"").replace(/\D/g,""),10);return isFinite(v)&&v>=100?v:1000};
-function alloc(picks,B){
-  // 100円単位・各100円以上で、オッズの逆数に比例して配分
-  const n=picks.length, units=Math.max(n,Math.floor(B/100));
-  const inv=picks.map(c=>1/Math.max(c.odds,1)), tot=inv.reduce((a,b)=>a+b,0);
-  let u=inv.map(x=>Math.max(1,Math.floor(x/tot*units)));
-  let left=units-u.reduce((a,b)=>a+b,0);
-  while(left>0){let k=0,low=1e9;picks.forEach((c,i)=>{const pay=u[i]*c.odds;if(pay<low){low=pay;k=i}});u[k]++;left--}
-  return u.map(x=>x*100);
-}
 function renderToday(){
   if(!PR||!PR.races){$("#today-list").innerHTML='<div class="empty panel">予想データがまだありません。</div>';return}
   const [yy,mm,dd]=PR.date.split("-").map(Number);
@@ -358,13 +347,13 @@ function raceCard(z,num){
   const sf=i=>{const v=(z.exs&&z.exs[i]&&z.exs[i].self);return v==null?"-":`<span class="${v<=-0.05?"selfgood":v>=0.05?"selfbad":""}">${v>0?"+":""}${v.toFixed(2)}</span>`};
   const rows=z.boats.map((b,i)=>`<tr class="${num&&String(b.num)===num?"me":""}"><td>${boat(b.b)}</td><td class="nm">${esc(b.name)} <span class="num" style="color:var(--sub);font-size:11.5px">${b.num}</span></td><td>${b.cls}</td><td class="r num">${b.wr??"-"}</td><td class="r num">${b.et?b.et.toFixed(2):"-"}</td><td class="r num">${sf(i)}</td><td class="r num">${b.exst!=null?b.exst.toFixed(2):"-"}</td><td class="num"><span class="p1bar" style="width:${Math.max(2,b.p1*0.6)}px"></span>${b.p1.toFixed(0)}%</td></tr>`).join("");
   const src=z.odds_source==="live"?"実オッズ":"推定倍率";
-  const B=budget(), st=alloc(z.picks,B), tot=st.reduce((a,b)=>a+b,0);
+  const st=z.picks.map(c=>c.yen||0), tot=st.reduce((a,b)=>a+b,0);
   const won=c=>z.result&&c.combo===z.result.combo;
   const tk=z.picks.map((c,i)=>`<tr class="${won(c)?"won":""}"><td>${combo(c.combo)}${won(c)?' <span class="tag hit">的中</span>':""}</td><td class="r num">${c.odds.toFixed(1)}</td><td class="r num">${(c.p*100).toFixed(1)}%</td><td class="r num">${yen(st[i])}円</td><td class="r num">${yen(Math.round(st[i]*c.odds/10)*10)}円</td></tr>`).join("");
-  const axis=`<div class="axis"><div><span>軸（1着固定）</span><b>${boat(z.axis)}</b></div><div><span>点数</span><b>${z.n}<small>点</small></b></div><div><span>合成オッズ</span><b>${z.syn.toFixed(1)}<small>倍</small></b></div><div><span>的中確率</span><b>${(z.hitp*100).toFixed(1)}<small>%</small></b></div><div><span>期待値（参考）</span><b>${z.ev.toFixed(2)}</b></div></div>`;
-  const tbl=`<div class="sel tbl"><table><thead><tr><th>組番</th><th class="r">${src}</th><th class="r">確率</th><th class="r">金額</th><th class="r">当たれば</th></tr></thead><tbody>${tk}</tbody><tfoot><tr><td class="note">合計</td><td></td><td class="r num">${(z.hitp*100).toFixed(1)}%</td><td class="r num">${yen(tot)}円</td><td></td></tr></tfoot></table>${(()=>{const pays=z.picks.map((c,i)=>st[i]*c.odds),lo=Math.min(...pays),hi=Math.max(...pays);if(hi<=lo*1.3)return "";const need=Math.ceil(100*Math.max(...z.picks.map(c=>c.odds))/z.syn/100)*100;return `<p class="note" style="padding:4px 8px 6px;margin:0">この予算では払戻がそろいません（${yen(Math.round(lo/10)*10)}〜${yen(Math.round(hi/10)*10)}円）。そろえるには約${yen(need)}円が必要です。</p>`})()}</div>`;
+  const axis=`<div class="axis"><div><span>軸（1着固定）</span><b>${boat(z.axis)}</b></div><div><span>点数</span><b>${z.n}<small>点</small></b></div><div><span>購入額</span><b>${yen(tot)}<small>円</small></b></div><div><span>合成オッズ</span><b>${z.syn.toFixed(1)}<small>倍</small></b></div><div><span>的中確率</span><b>${(z.hitp*100).toFixed(1)}<small>%</small></b></div><div><span>期待値（参考）</span><b>${z.ev.toFixed(2)}</b></div></div>`;
+  const tbl=`<div class="sel tbl"><table><thead><tr><th>組番</th><th class="r">${src}</th><th class="r">確率</th><th class="r">金額</th><th class="r">当たれば</th></tr></thead><tbody>${tk}</tbody><tfoot><tr><td class="note">合計</td><td></td><td class="r num">${(z.hitp*100).toFixed(1)}%</td><td class="r num">${yen(tot)}円</td><td></td></tr></tfoot></table></div>`;
   const hit=z.result?(z.hit?'<span class="tag hit">的中</span>':'<span class="tag">不的中</span>'):"";
-  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span>${hit}${z.hit?`<span class="note">100円あたり ${yen(Math.round(z.ret100))}円の払戻</span>`:""}</div>`:"";
+  const res=z.result?`<div class="result"><span class="label">結果</span>${combo(z.result.combo)}<span class="num">${yen(z.result.pay)}円</span><span class="cls ${z.result.cls}">${CLSJ[z.result.cls]}</span>${hit}${z.hit?`<span class="note">${yen(tot)}円 → ${yen(Math.round(z.ret100*tot/100/10)*10)}円の払戻</span>`:""}</div>`:"";
   return `<article class="race"><div class="race-h"><span class="rn">${z.r}R</span><span class="st">${ST[z.j]}</span><span class="buy">買い</span>
     ${z.odds_source==="live"?'<span class="tag live">実オッズ</span>':""}${z.made_after_close?'<span class="tag">締切後に作成</span>':""}
     <span class="time">締切 ${t}</span><span class="tt">${esc(z.title||"")} ${esc(z.sub||"")}</span></div>
@@ -374,8 +363,6 @@ function raceCard(z,num){
 }
 $("#today-num").addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"");if(!e.target.value||e.target.value.length===4)renderToday()});
 $("#today-clear").addEventListener("click",()=>{$("#today-num").value="";todaySt="all";renderToday()});
-$("#budget").addEventListener("change",e=>{const v=budget();e.target.value=v;store.set("budget",v);renderToday()});
-{const v=store.get("budget");if(v)$("#budget").value=v;}
 
 /* ---------- 出目履歴 ---------- */
 let demeSt=2, histLimit=40;
@@ -480,7 +467,7 @@ function renderRacer(num){
 function renderPerf(){
   if(!BT||!BT.buy||BT.hitp_min==null){$("#perf-lede").textContent="検証データがありません。";return}
   const b=BT.buy,e=BT.every;
-  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の戸田・徳山・大村 ${yen(BT.test_races)}レース（展示データがあるもの）で試した結果です。1艇軸の3連単流し・合成オッズ5〜12倍の買い方で、的中確率${TH()}%以上の「買い」レースだけを、配分どおりに買ったと仮定しています。過去の本物のオッズは手に入らないため、合成オッズは推定オッズで計算しています。`;
+  $("#perf-lede").innerHTML=`AIの学習に使っていない <b>${BT.test_from}〜${BT.test_to}</b> の戸田・徳山・大村 ${yen(BT.test_races)}レース（展示データがあるもの）で試した結果です。1艇軸の3連単流し・1レース500円まで（最大5点）・合成オッズ5〜12倍の買い方で、的中確率${TH()}%以上の「買い」レースだけを配分どおりに買ったと仮定しています。過去の本物のオッズは手に入らないため、合成オッズは推定オッズで計算しています。`;
   $("#perf-kpi").innerHTML=`<div class="panel stack" style="gap:8px"><span class="label">買いレースだけ（的中確率${TH()}%以上）</span>
     <div class="grid3" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><span>的中率</span><b>${b.hit_rate}%</b></div><div class="stat"><span>回収率</span><b>${b.roi}%</b></div><div class="stat"><span>1日あたり</span><b>${BT.buy_per_day}<small style="font-size:12px">R</small></b></div></div>
     <span class="note">${yen(b.races)}レースで${yen(b.hits)}回的中。平均${b.n}点・合成オッズ平均${b.syn}倍。</span></div>

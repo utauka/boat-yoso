@@ -144,7 +144,7 @@ def main():
 
     bands = [(0, .12), (.12, .15), (.15, .18), (.18, .21), (.21, 1.0)]
     report = {"generated": dt.datetime.now().isoformat(timespec="minutes"), "train_to": cut, "test_from": cut,
-              "test_to": last, "test_races": int(len(bt)), "hitp_min": HITP_MIN, "syn": [SYN_MIN, SYN_MAX], "days": int(days),
+              "test_to": last, "test_races": int(len(bt)), "hitp_min": HITP_MIN, "max_stake": 500, "syn": [SYN_MIN, SYN_MAX], "days": int(days),
               "stadiums": {str(k): v for k, v in TARGET_STADIUMS.items()},
               "buy_per_day": round(len(buy) / max(days, 1), 1),
               "model": {"win_hit": round(hit1 * 100, 1), "tri_top1": round(top1 * 100, 1), "logloss": round(ll, 3),
