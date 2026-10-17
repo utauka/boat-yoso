@@ -19,7 +19,7 @@ import pandas as pd
 from common import MODELS, SITE_DATA, STADIUMS, payout_class, read_store, write_json
 from features import (COMBO_INDEX, FEATURES, ODDS_FEATS, PERMS, build_frame, combo_frame, combo_name,
                       trifecta_probs)
-from strategy import DEFAULT_MIX, HONMEI_MIN, MIXES, mix_combos, mix_key, pick_candidates
+from strategy import CONF_MIN, pick3
 
 PARAMS = dict(objective="binary", learning_rate=0.04, num_leaves=31, min_data_in_leaf=60,
               feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=1, lambda_l2=1.0, verbose=-1)
@@ -113,44 +113,47 @@ def main():
     cls_ok = np.mean([payout_class(a * 100) == payout_class(e * 100) for a, e in zip(ao, eo)])
     print(f"推定オッズと実際の払戻の相関 {corr:.2f}／本命・中穴・大穴の区分一致 {cls_ok:.1%}")
 
-    # ---- 3) 3点買い（本命・中穴・大穴の配分ごと）のバックテスト（1レース 100円×3点＝300円）
+    # ---- 3) 3点買い（本命＋中穴）と「買う／見送り」判断のバックテスト（1レース 100円×3点＝300円）
     rows = []
     stad = te["j"].astype(int).to_numpy()[::6]
     dates = te["d"].to_numpy()[::6]
     for n in range(len(te_keys)):
         if not valid[n]:
             continue
-        cand = pick_candidates(P[n], O[n])
+        pk = pick3(P[n], O[n])
         win = combo_name(int(wc[n]))
-        for mix in MIXES:
-            cs = mix_combos(cand, mix)
-            hit = win in cs
-            rows.append({"mix": mix_key(mix), "j": int(stad[n]), "d": dates[n], "hit": hit,
-                         "ret": int(wp[n]) if hit else 0, "cost": 100 * len(cs)})
+        cs = [c["combo"] for c in pk["picks"]]
+        hit = win in cs
+        rows.append({"j": int(stad[n]), "d": dates[n], "conf": pk["conf"], "buy": pk["buy"], "hit": hit,
+                     "ret": int(wp[n]) if hit else 0, "cost": 100 * len(cs)})
     bt = pd.DataFrame(rows)
+    buy = bt[bt["buy"]]
+    days = bt["d"].nunique()
 
     def summary(sub):
         if len(sub) == 0:
-            return {"races": 0, "hits": 0, "hit_rate": 0, "roi": 0, "avg_ret": 0}
+            return {"races": 0, "hits": 0, "hit_rate": 0, "roi": 0, "avg_ret": 0, "conf": 0}
         return {"races": int(len(sub)), "hits": int(sub["hit"].sum()), "hit_rate": round(sub["hit"].mean() * 100, 1),
                 "roi": round(sub["ret"].sum() / max(sub["cost"].sum(), 1) * 100, 1),
-                "avg_ret": int(sub.loc[sub["hit"], "ret"].mean()) if sub["hit"].any() else 0}
+                "avg_ret": int(sub.loc[sub["hit"], "ret"].mean()) if sub["hit"].any() else 0,
+                "conf": round(sub["conf"].mean() * 100, 1)}
 
-    keys = [mix_key(m) for m in MIXES]
+    bands = [(0, .15), (.15, .20), (.20, .25), (.25, .30), (.30, 1.0)]
     report = {"generated": dt.datetime.now().isoformat(timespec="minutes"), "train_to": cut, "test_from": cut,
-              "test_to": last, "test_races": int(valid.sum()), "mixes": keys, "default_mix": mix_key(DEFAULT_MIX),
-              "honmei_min": HONMEI_MIN,
+              "test_to": last, "test_races": int(valid.sum()), "conf_min": CONF_MIN, "days": int(days),
+              "buy_per_day": round(len(buy) / max(days, 1), 1),
               "model": {"win_hit": round(hit1 * 100, 1), "tri_top1": round(top1 * 100, 1), "logloss": round(ll, 3),
                         "odds_corr": round(corr, 2), "odds_class_match": round(cls_ok * 100, 1), "odds_correction": round(correction, 3)},
-              "all": {k: summary(bt[bt["mix"] == k]) for k in keys},
-              "by_stadium": {str(j): {k: summary(bt[(bt["mix"] == k) & (bt["j"] == j)]) for k in keys} for j in STADIUMS},
-              "monthly": {m: {k: summary(bt[(bt["mix"] == k) & (bt["d"].str[:7] == m)]) for k in keys}
-                          for m in sorted(bt["d"].str[:7].unique())}}
+              "buy": summary(buy), "every": summary(bt),
+              "bands": [{"lo": lo, "hi": hi, **summary(bt[(bt["conf"] >= lo) & (bt["conf"] < hi)])} for lo, hi in bands],
+              "by_stadium": {str(j): summary(buy[buy["j"] == j]) for j in STADIUMS},
+              "monthly": {m: summary(buy[buy["d"].str[:7] == m]) for m in sorted(bt["d"].str[:7].unique())}}
     report["odds_correction"] = round(correction, 3)
     print(f"推定オッズの補正係数 {correction:.3f}")
-    for k in keys:
-        o = report["all"][k]
-        print(f'  本命・中穴・大穴 {k}: 的中{o["hit_rate"]}% 回収{o["roi"]}%')
+    print("買う", report["buy"], "／1日", report["buy_per_day"], "R")
+    print("全レース", report["every"])
+    for x in report["bands"]:
+        print(f'  自信{x["lo"]:.0%}〜{x["hi"]:.0%}: {x["races"]}R 予測{x["conf"]}% 実際{x["hit_rate"]}% 回収{x["roi"]}%')
 
     # ---- 本番用：全期間で学習し直して保存
     print("全期間で学習し直して保存…")

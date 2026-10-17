@@ -19,9 +19,9 @@ import pandas as pd
 
 from common import (CLASS_NAMES, DATA, JST, MODELS, SITE_DATA, STADIUMS, env_local_root, load_day_raw, normalize,
                     payout_class, read_store, write_json)
-from features import COMBO_INDEX, CourseHistory, combo_name, in_diagnosis, prep, race_rows
+from features import COMBO_INDEX, CourseHistory, combo_name, prep, race_rows
 from odds import fetch_odds3t
-from strategy import DEFAULT_MIX, HONMEI_MIN, KINDS, MIXES, mix_key, pick_candidates
+from strategy import CHUANA_MAX, CONF_MIN, HONMEI_MAX, HONMEI_MIN, pick3
 from train import est_odds, predict_probs
 
 PRED = SITE_DATA / "predictions.json"
@@ -36,19 +36,24 @@ def load_models():
     return m, om, meta
 
 
-def reasons(x: dict, p1: np.ndarray, diag: dict) -> list[str]:
+def reasons(x: dict, p1: np.ndarray, pk: dict) -> list[str]:
     boats = x["boats"]
-    ib = diag["b"]
-    b = boats[ib - 1]
-    out = [f'イン{ib}号艇 {b.get("name","")}（{CLASS_NAMES.get(b.get("cls"),"")}）のイン逃げ率 {p1[ib-1]*100:.0f}%']
-    if diag.get("nige") is not None:
-        out.append(f'この選手のイン成績（直近1年{diag["in_starts"]}走）: 逃げ{diag["nige"]:.0f}%・まくられ{diag["makurare"]:.0f}%・まくり差され{diag["mzasare"]:.0f}%')
-    if diag.get("gap") is not None:
-        g = diag["gap"]
-        out.append(f'展示ST: イン{diag["exst"]:.2f}／外の最速との差 {g:+.2f}' + ("（外の方が速い）" if g < 0 else ""))
-    others = [k for k in range(6) if k != ib - 1]
-    best = max(others, key=lambda k: p1[k])
-    out.append(f'逆転の一番手は{boats[best]["b"]}号艇（1着率{p1[best]*100:.0f}%）')
+    out = []
+    order = np.argsort(-p1)
+    b0, b1 = boats[int(order[0])], boats[int(order[1])]
+    out.append(f'1着候補は{b0["b"]}号艇 {b0.get("name","")}（{CLASS_NAMES.get(b0.get("cls"),"")}・勝率{b0.get("nwr")}）{p1[order[0]]*100:.0f}%、'
+               f'次いで{b1["b"]}号艇 {p1[order[1]]*100:.0f}%')
+    ets = [(bb.get("ex") or {}).get("et") for bb in boats]
+    if all(ets):
+        k = int(np.argmin(ets))
+        out.append(f'展示タイム1位は{boats[k]["b"]}号艇（{ets[k]:.2f}）')
+    exst = [(bb.get("ex") or {}).get("st") for bb in boats]
+    if all(v is not None for v in exst):
+        k = int(np.argmin(exst))
+        out.append(f'展示スタート最速は{boats[k]["b"]}号艇（{exst[k]:.2f}）')
+    m2 = [bb.get("m2") or 0 for bb in boats]
+    k = int(np.argmax(m2))
+    out.append(f'モーター2連率トップは{boats[k]["b"]}号艇（{m2[k]:.0f}%）')
     return out
 
 
@@ -81,16 +86,12 @@ def main():
             continue
         df = prep(pd.DataFrame(rows))
         p1, p2, p3, P = predict_probs(models, df)
-        diag = in_diagnosis(rows)
-        ib = diag["b"]
-        p_in = float(p1[0][ib - 1])
-        diag.update(p=round(p_in * 100, 1), level="strong" if p_in >= 0.7 else "normal" if p_in >= 0.5 else "weak")
         O = est_odds(om, df, meta["odds_correction"])[0]
         ca = dt.datetime.fromisoformat(x["ca"]).replace(tzinfo=JST) if x.get("ca") else None
         closed = bool(ca and now >= ca)
         old = prev_races.get((x["j"], x["r"]))
 
-        if old and old.get("frozen") and "cands" in old:
+        if old and old.get("frozen") and "conf" in old:
             item = old  # 締切前に確定した予想を残す
         else:
             odds_src, live = "est", None
@@ -108,7 +109,7 @@ def main():
                     if k in COMBO_INDEX:
                         O_use[COMBO_INDEX[k]] = v
                 odds_src = "live"
-            pk = pick_candidates(P[0], O_use, live=odds_src == "live")
+            pk = pick3(P[0], O_use, live=odds_src == "live")
             top = np.argsort(-P[0])[:6]
             item = {
                 "j": x["j"], "r": x["r"], "ca": x.get("ca"), "title": x.get("title"), "sub": x.get("sub"),
@@ -118,10 +119,10 @@ def main():
                            "c": (b.get("ex") or {}).get("c"), "exst": (b.get("ex") or {}).get("st"),
                            "p1": round(float(p1[0][i]) * 100, 1), "p3": round(float(p3[0][i]) * 100, 1)}
                           for i, b in enumerate(x["boats"])],
-                "cands": pk, "odds_source": odds_src, "in": diag,
+                "picks": pk["picks"], "conf": pk["conf"], "buy": pk["buy"], "odds_source": odds_src,
                 "top": [{"c": combo_name(int(i)), "p": round(float(P[0][i]) * 100, 1), "odds": round(float(O_use[i]), 1)}
                         for i in top],
-                "reasons": reasons(x, p1[0], diag),
+                "reasons": reasons(x, p1[0], pk),
                 "made_at": now.isoformat(timespec="minutes"),
                 "made_after_close": closed,
                 "frozen": closed,
@@ -130,30 +131,31 @@ def main():
         t = (x.get("pay") or {}).get("trifecta") or []
         if t:
             item["result"] = {"combo": t[0][0], "pay": t[0][1], "cls": payout_class(t[0][1])}
-            for k in KINDS:
-                for c in item["cands"].get(k) or []:
-                    c["hit"] = c["combo"] == t[0][0]
+            for c in item["picks"]:
+                c["hit"] = c["combo"] == t[0][0]
+            item["hit"] = any(c["hit"] for c in item["picks"])
             item["frozen"] = True
         out_races.append(item)
 
     write_json(LIVE, live_store)
-    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "mixes": [mix_key(m) for m in MIXES], "default_mix": mix_key(DEFAULT_MIX), "honmei_min": HONMEI_MIN,
+    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "conf_min": CONF_MIN, "odds_range": [HONMEI_MIN, HONMEI_MAX, CHUANA_MAX],
                       "stadiums": {str(j): n for j, n in STADIUMS.items()}, "races": out_races})
 
-    # 実績ログ（結果が出たレースだけ）: 候補を区分ごとに残し、画面でどの配分でも計算できるようにする
-    COLS = ["date", "j", "r", "odds_source", "honmei", "chuana", "oana", "result", "pay", "after_close"]
+    # 実績ログ（結果が出たレースだけ）
+    COLS = ["date", "j", "r", "odds_source", "combos", "conf", "buy", "result", "pay", "hit", "after_close"]
     log = json.loads(LOG.read_text()) if LOG.exists() else {}
     keep = [r for r in log.get("rows", []) if r[0] != day.isoformat()] if log.get("cols") == COLS else []
     for z in out_races:
         if not z.get("result"):
             continue
-        keep.append([day.isoformat(), z["j"], z["r"], z["odds_source"]]
-                    + ["/".join(c["combo"] for c in z["cands"][k]) for k in KINDS]
-                    + [z["result"]["combo"], z["result"]["pay"], int(bool(z.get("made_after_close")))])
+        keep.append([day.isoformat(), z["j"], z["r"], z["odds_source"], "/".join(c["combo"] for c in z["picks"]),
+                     z["conf"], int(bool(z["buy"])), z["result"]["combo"], z["result"]["pay"], int(bool(z.get("hit"))),
+                     int(bool(z.get("made_after_close")))])
     keep.sort()
     write_json(LOG, {"cols": COLS, "rows": keep})
     done = [z for z in out_races if z.get("result")]
-    print(f"{day}: {len(out_races)}レースの予想（結果確定 {len(done)}）")
+    buys = [z for z in out_races if z.get("buy")]
+    print(f"{day}: {len(out_races)}レースの予想（買う {len(buys)}／結果確定 {len(done)}）")
 
 
 if __name__ == "__main__":
