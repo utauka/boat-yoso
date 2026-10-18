@@ -21,7 +21,7 @@ from common import (CLASS_NAMES, DATA, JST, MODELS, SITE_DATA, env_local_root, l
                     payout_class, read_store, write_json)
 from features import COMBO_INDEX, CourseHistory, combo_name, prep, race_rows
 from odds import fetch_odds3t
-from strategy import HITP_MIN, MAX_UNITS, MIN_UNITS, SYN_MAX, SYN_MIN, TARGET_STADIUMS, UNIT, axis_pick, return_per_100
+from strategy import DEFAULT_MIX, IN_MIN, MIXES, TARGET_STADIUMS, in_pick
 from train import est_odds, predict_probs
 
 PRED = SITE_DATA / "predictions.json"
@@ -43,7 +43,10 @@ def reasons(x: dict, p1: np.ndarray, rows: list[dict], pk: dict) -> list[str]:
     if pk.get("axis"):
         a = pk["axis"] - 1
         b = boats[a]
-        out.append(f'軸は{b["b"]}号艇 {b.get("name","")}（{CLASS_NAMES.get(b.get("cls"),"")}・勝率{b.get("nwr")}）、1着率{p1[a]*100:.0f}%')
+        out.append(f'インは{b["b"]}号艇 {b.get("name","")}（{CLASS_NAMES.get(b.get("cls"),"")}・勝率{b.get("nwr")}）、イン逃げ率{p1[a]*100:.0f}%')
+        others = [k for k in range(6) if k != a]
+        k = max(others, key=lambda i: p1[i])
+        out.append(f'逆転の一番手は{boats[k]["b"]}号艇（1着率{p1[k]*100:.0f}%）')
     ets = [(bb.get("ex") or {}).get("et") for bb in boats]
     if not all(ets):
         out.append("展示がまだ出ていません（展示後に判断します）")
@@ -104,7 +107,7 @@ def main():
         closed = bool(ca and now >= ca)
         old = prev_races.get((x["j"], x["r"]))
 
-        if old and old.get("frozen") and "stake" in old:
+        if old and old.get("frozen") and "mixes" in old:
             item = old  # 締切前に確定した予想を残す
         else:
             odds_src, live = "est", None
@@ -122,9 +125,12 @@ def main():
                     if k in COMBO_INDEX:
                         O_use[COMBO_INDEX[k]] = v
                 odds_src = "live"
-            pk = axis_pick(P[0], O_use, live=odds_src == "live")
+            cs = [r["c"] for r in rows]
+            ib = int(rows[cs.index(1)]["b"]) if 1 in cs else 1
+            p_in = float(p1[0][ib - 1])
+            pk = in_pick(P[0], O_use, ib, live=odds_src == "live")
             has_ex = all((b.get("ex") or {}).get("et") for b in x["boats"])
-            state = ("buy" if pk["buy"] else "skip") if has_ex else "wait"
+            state = ("buy" if p_in >= IN_MIN and pk["mixes"] else "skip") if has_ex else "wait"
             top = np.argsort(-P[0])[:6]
             item = {
                 "j": x["j"], "r": x["r"], "ca": x.get("ca"), "title": x.get("title"), "sub": x.get("sub"),
@@ -134,14 +140,13 @@ def main():
                            "c": (b.get("ex") or {}).get("c"), "exst": (b.get("ex") or {}).get("st"), "ast": b.get("ast"),
                            "p1": round(float(p1[0][i]) * 100, 1), "p3": round(float(p3[0][i]) * 100, 1)}
                           for i, b in enumerate(x["boats"])],
-                "axis": pk["axis"], "picks": pk["picks"], "n": pk["n"], "syn": pk["syn"], "hitp": pk["hitp"], "ev": pk["ev"],
-                "stake": pk["stake"],
+                "in": {"b": ib, "p": round(p_in, 4)}, "honmei": pk["honmei"], "chuana": pk["chuana"], "mixes": pk["mixes"],
                 "state": state, "buy": state == "buy", "odds_source": odds_src,
                 "exs": [{"self": None if r.get("et_self") is None or np.isnan(r["et_self"]) else round(float(r["et_self"]), 2)}
                         for r in rows],
                 "top": [{"c": combo_name(int(i)), "p": round(float(P[0][i]) * 100, 1), "odds": round(float(O_use[i]), 1)}
                         for i in top],
-                "reasons": reasons(x, p1[0], rows, pk),
+                "reasons": reasons(x, p1[0], rows, {"axis": ib}),
                 "made_at": now.isoformat(timespec="minutes"),
                 "made_after_close": closed,
                 "frozen": closed,
@@ -150,27 +155,27 @@ def main():
         t = (x.get("pay") or {}).get("trifecta") or []
         if t:
             item["result"] = {"combo": t[0][0], "pay": t[0][1], "cls": payout_class(t[0][1])}
-            for c in item["picks"]:
+            for c in item.get("honmei", []) + item.get("chuana", []):
                 c["hit"] = c["combo"] == t[0][0]
-            item["hit"] = any(c["hit"] for c in item["picks"])
-            item["ret100"] = round(return_per_100(item, t[0][0], t[0][1]), 1)
+            item["mix_hit"] = {k: t[0][0] in v["combos"] for k, v in item.get("mixes", {}).items()}
             item["frozen"] = True
         out_races.append(item)
 
     write_json(LIVE, live_store)
-    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "hitp_min": HITP_MIN, "syn": [SYN_MIN, SYN_MAX], "stake_range": [MIN_UNITS * UNIT, MAX_UNITS * UNIT],
+    write_json(PRED, {"date": day.isoformat(), "generated": now.isoformat(timespec="minutes"), "in_min": IN_MIN, "mixes_def": MIXES, "default_mix": DEFAULT_MIX,
                       "stadiums": {str(j): n for j, n in TARGET_STADIUMS.items()}, "races": out_races})
 
-    # 実績ログ（結果が出たレースだけ）
-    COLS = ["date", "j", "r", "odds_source", "combos", "n", "syn", "hitp", "state", "result", "pay", "hit", "ret100", "after_close"]
+    # 実績ログ（結果が出たレースだけ）: 配分ごとの買い目を残し、画面でどの配分でも計算できるようにする
+    COLS = ["date", "j", "r", "odds_source", "state", "pin", "m20", "m11", "m02", "result", "pay", "after_close"]
     log = json.loads(LOG.read_text()) if LOG.exists() else {}
     keep = [r for r in log.get("rows", []) if r[0] != day.isoformat()] if log.get("cols") == COLS else []
     for z in out_races:
-        if not z.get("result") or not z.get("picks"):
+        if not z.get("result") or "mixes" not in z:
             continue
-        keep.append([day.isoformat(), z["j"], z["r"], z["odds_source"], "/".join(c["combo"] for c in z["picks"]), z["n"],
-                     z["syn"], z["hitp"], z["state"], z["result"]["combo"], z["result"]["pay"], int(bool(z.get("hit"))),
-                     z.get("ret100", 0), int(bool(z.get("made_after_close")))])
+        mx = z["mixes"]
+        keep.append([day.isoformat(), z["j"], z["r"], z["odds_source"], z["state"], z["in"]["p"]]
+                    + ["/".join(mx[k]["combos"]) if k in mx else "" for k in ("2-0", "1-1", "0-2")]
+                    + [z["result"]["combo"], z["result"]["pay"], int(bool(z.get("made_after_close")))])
     keep.sort()
     write_json(LOG, {"cols": COLS, "rows": keep})
     done = [z for z in out_races if z.get("result")]
